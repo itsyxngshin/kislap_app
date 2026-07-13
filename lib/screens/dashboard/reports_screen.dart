@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import '../../theme/app_colors.dart';
+import '../../widgets/guest_view.dart'; 
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -12,6 +13,7 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  bool _isGuest = false;
   bool _isLoading = true;
   double _monthlyKwh = 0.0;
   double _monthlyCost = 0.0;
@@ -29,7 +31,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
-      if (user == null) return;
+      // Check for guest
+      if (user == null) {
+        if (mounted) setState(() {
+          _isGuest = true;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      _isGuest = false;
 
       // Fetch Profile, Rates, and Devices
       final profile = await supabase.from('profiles').select('location').eq('id', user.id).single();
@@ -81,6 +92,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
 
+    if (_isGuest) {
+      return const SafeArea(
+        child: GuestView(
+          icon: Icons.bar_chart,
+          title: 'Monthly Reports',
+          subtitle: 'Sign in to unlock detailed historical trends, daily fluctuations, and cost estimations over time.',
+        ),
+      );
+    }
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
@@ -113,7 +133,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             if (_simulatedDailyUsage.isNotEmpty && _monthlyKwh > 0)
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -161,7 +181,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildStatCard(String title, String value, {bool isHighlight = false, bool isTextSmall = false}) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

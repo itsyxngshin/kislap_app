@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/guest_view.dart'; 
 
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key});
@@ -15,7 +16,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final supabase = Supabase.instance.client;
     final userId = supabase.auth.currentUser?.id;
 
-    if (userId == null) throw Exception("User not logged in");
+    if (userId == null) return {'isGuest': true};
 
     // 1. Fetch user's devices
     final devices = await supabase.from('appliances').select().eq('user_id', userId).order('created_at');
@@ -44,6 +45,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+          }
+
+          if (snapshot.data?['isGuest'] == true) {
+            return const GuestView(
+              icon: Icons.kitchen,
+              title: 'Your Device List',
+              subtitle: 'Log in to add your appliances and start tracking how much power they consume.',
+            );
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error loading devices: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
@@ -103,14 +112,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
       child: Column(
         children: [
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: iconColor.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                 child: Icon(icon, color: iconColor, size: 24),
               ),
               const SizedBox(width: 15),
@@ -126,7 +135,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: iconColor.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                 child: Text(category, style: TextStyle(color: iconColor, fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],

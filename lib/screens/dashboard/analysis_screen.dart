@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/guest_view.dart'; 
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -11,6 +12,7 @@ class AnalysisScreen extends StatefulWidget {
 }
 
 class _AnalysisScreenState extends State<AnalysisScreen> {
+  bool _isGuest = false;
   bool _isLoading = true;
   double _totalMonthlyKwh = 0.0;
   Map<String, double> _categoryBreakdown = {};
@@ -34,7 +36,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
-      if (userId == null) return;
+      
+      if (userId == null) {
+        if (mounted) setState(() {
+          _isGuest = true;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      _isGuest = false;
 
       final devices = await supabase.from('appliances').select().eq('user_id', userId);
       
@@ -65,6 +76,15 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
 
+    if (_isGuest) {
+        return const SafeArea(
+          child: GuestView(
+            icon: Icons.pie_chart,
+            title: 'Energy Analysis',
+            subtitle: 'Create an account to see a visual breakdown of which appliance categories consume the most power.',
+          ),
+        );
+      }
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
@@ -78,7 +98,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             // Summary Card
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -91,7 +111,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
                     child: const Text('Live Estimate', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ],
@@ -103,7 +123,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             if (_totalMonthlyKwh > 0)
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
                 child: Row(
                   children: [
                     SizedBox(
