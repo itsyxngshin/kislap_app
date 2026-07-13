@@ -1,203 +1,275 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import 'add_device_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String _userName = 'Loading...';
+  double _totalMonthlyCost = 0.0;
+  double _totalDailyKwh = 0.0;
+  double _totalDailyCost = 0.0;
+  
+  List<dynamic> _topDevices = [];
+  bool _isLoading = true;
+  bool _isGuest = false;
+  
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
+  }
+
+  Future<void> _fetchDashboardData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      
+      // If no user is found, mark as guest and stop loading
+      if (user == null) {
+        if (mounted) setState(() {
+          _isGuest = true;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      _isGuest = false;
+
+      // 1. Fetch Profile (Name & Location)
+      final profile = await supabase.from('profiles').select('full_name, location').eq('id', user.id).single();
+      final location = profile['location'] as String;
+      
+      // Extract just the first name for the greeting
+      final fullName = profile['full_name'] as String? ?? 'User';
+      _userName = fullName.split(' ')[0];
+
+      // 2. Fetch Active Billing Rate
+      final rateData = await supabase.from('billing_rates').select().order('billing_month', ascending: false).limit(1).single();
+      final rate = (location == 'island' ? rateData['island_rate'] : rateData['mainland_rate']) as num;
+
+      // 3. Fetch Appliances & Run the Math
+      final devices = await supabase.from('appliances').select().eq('user_id', user.id);
+      
+      double dailyKwhSum = 0;
+      
+      // Sort devices by highest consumption for the "Live draw" section
+      final sortedDevices = List<Map<String, dynamic>>.from(devices);
+      sortedDevices.sort((a, b) {
+        final aKwh = (a['watts'] / 1000) * a['hours_per_day'] * a['quantity'];
+        final bKwh = (b['watts'] / 1000) * b['hours_per_day'] * b['quantity'];
+        return bKwh.compareTo(aKwh); // Descending order
+      });
+
+      for (var device in devices) {
+        final double watts = device['watts'] / 1000;
+        final double hours = device['hours_per_day'];
+        final int qty = device['quantity'];
+        dailyKwhSum += (watts * hours * qty);
+      }
+
+      if (mounted) {
+        setState(() {
+          _totalDailyKwh = dailyKwhSum;
+          _totalDailyCost = dailyKwhSum * rate;
+          _totalMonthlyCost = _totalDailyCost * 30; // 30-day estimate
+          _topDevices = sortedDevices;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+    }
+
     return SafeArea(
-      bottom: false, // Prevents padding conflicts with the floating nav bar
-      child: SingleChildScrollView(
-        // Extra bottom padding ensures content isn't hidden forever behind the floating bar
-        padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Area
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Maria', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                Stack(
+      bottom: false,
+      child: RefreshIndicator(
+        color: AppColors.appYellow,
+        backgroundColor: AppColors.inputBackground,
+        onRefresh: _fetchDashboardData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh always works
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Area
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_userName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Stack(
+                    children: [
+                      const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+                      Positioned(
+                        right: 2,
+                        top: 2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(color: AppColors.adminRed, shape: BoxShape.circle),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 30),
+
+              // The Hero Estimator Card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(24)),
+                child: Row(
                   children: [
-                    const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(color: AppColors.adminRed, shape: BoxShape.circle),
+                    SizedBox(
+                      height: 80,
+                      width: 80,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CircularProgressIndicator(
+                            value: 0.73, // Hardcoded budget progress for prototype
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            color: AppColors.appYellow,
+                            strokeWidth: 8,
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('73%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                                Text('of budget', style: TextStyle(color: AppColors.textHintColor, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('ESTIMATED BILL', style: TextStyle(color: AppColors.textHintColor, fontSize: 12, letterSpacing: 1.2)),
+                          const SizedBox(height: 5),
+                          Text(
+                            '₱${_totalMonthlyCost.toStringAsFixed(0)}', 
+                            style: const TextStyle(color: AppColors.appYellow, fontSize: 28, fontWeight: FontWeight.bold)
+                          ),
+                          const SizedBox(height: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: AppColors.adminRed.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                            child: const Text('Tracking higher', style: TextStyle(color: AppColors.adminRed, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // The Hero Estimator Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.inputBackground.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(24),
               ),
-              child: Row(
+              const SizedBox(height: 20),
+
+              // Secondary Metric Cards
+              Row(
                 children: [
-                  // Budget Progress Ring
-                  SizedBox(
-                    height: 80,
-                    width: 80,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CircularProgressIndicator(
-                          value: 0.73,
-                          backgroundColor: Colors.white.withValues(alpha: 0.1),
-                          color: AppColors.appYellow,
-                          strokeWidth: 8,
-                        ),
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('73%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                              Text('of budget', style: TextStyle(color: AppColors.textHintColor, fontSize: 10)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  // Billing Numbers
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('ESTIMATED BILL', style: TextStyle(color: AppColors.textHintColor, fontSize: 12, letterSpacing: 1.2)),
-                        const SizedBox(height: 5),
-                        const Text('₱1,184.25', style: TextStyle(color: AppColors.appYellow, fontSize: 28, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 5),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.adminRed.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
-                          child: const Text('↑ 12% vs last month', style: TextStyle(color: AppColors.adminRed, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.bolt, color: AppColors.appYellow, size: 20),
+                          const SizedBox(height: 10),
+                          Text('${_totalDailyKwh.toStringAsFixed(1)} kWh', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Text("Today's use", style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Secondary Metric Cards
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.bolt, color: AppColors.appYellow, size: 20),
-                        const SizedBox(height: 10),
-                        const Text('13.42 kWh', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text("Today's use", style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.access_time, color: Colors.greenAccent, size: 20),
-                        const SizedBox(height: 10),
-                        const Text('₱148.43', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text("Est. cost today", style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // Quick Actions Grid
-            const Text('Quick Actions', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildQuickAction(Icons.add, 'Add device', isPrimary: true, onTap: () {
-                  // Direct link to the Add Device Screen
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AddDeviceScreen()));
-                }),
-                _buildQuickAction(Icons.show_chart, 'Reports', onTap: () {}),
-                _buildQuickAction(Icons.access_time, 'Rate', onTap: () {}),
-                _buildQuickAction(Icons.ios_share, 'Export', onTap: () {}),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // Live Draw Stream
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Live draw', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text('See all', style: TextStyle(color: AppColors.appYellow, fontSize: 13)),
-                ),
-              ],
-            ),
-            
-            // Dummy Appliance Block
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.inputBackground.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.ac_unit, color: Colors.greenAccent, size: 24),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Refrigerator', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        Text('180W · always on', style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
-                      ],
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.access_time, color: Colors.greenAccent, size: 20),
+                          const SizedBox(height: 10),
+                          Text('₱${_totalDailyCost.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Text("Est. cost today", style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ),
-                  const Text('₱48.17', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 30),
+
+              // Quick Actions Grid
+              const Text('Quick Actions', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 15),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildQuickAction(Icons.add, 'Add device', isPrimary: true, onTap: () {
+                    // Navigate to Add Device, then trigger a refresh when we return!
+                    Navigator.push(
+                      context, 
+                      MaterialPageRoute(builder: (_) => const AddDeviceScreen())
+                    ).then((_) => _fetchDashboardData()); 
+                  }),
+                  _buildQuickAction(Icons.show_chart, 'Reports', onTap: () {}),
+                  _buildQuickAction(Icons.access_time, 'Rate', onTap: () {}),
+                  _buildQuickAction(Icons.ios_share, 'Export', onTap: () {}),
+                ],
+              ),
+              const SizedBox(height: 30),
+
+              // Live Draw Stream
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Top consumer', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  TextButton(onPressed: () {}, child: const Text('See all', style: TextStyle(color: AppColors.appYellow, fontSize: 13))),
+                ],
+              ),
+              
+              if (_topDevices.isNotEmpty)
+                _buildTopDeviceCard(_topDevices.first)
+              else
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                  child: const Text('No devices found.', style: TextStyle(color: AppColors.textHintColor)),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Reusable widget for those square action buttons
   Widget _buildQuickAction(IconData icon, String label, {bool isPrimary = false, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
@@ -213,7 +285,34 @@ class HomeScreen extends StatelessWidget {
             child: Icon(icon, color: isPrimary ? Colors.black87 : Colors.white, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+          Text(label, style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopDeviceCard(Map<String, dynamic> device) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.bolt, color: Colors.greenAccent, size: 24),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(device['name'], style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('${device['watts']}W · ${device['hours_per_day']} hrs/day', style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+              ],
+            ),
+          ),
         ],
       ),
     );

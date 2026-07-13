@@ -1,12 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
+import '../admin/admin_dashboard_screen.dart'; // <-- Import the admin screen
 
-class SignInScreen extends StatelessWidget {
+class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter both email and password.')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      
+      // 1. Authenticate with Supabase
+      final AuthResponse response = await supabase.auth.signInWithPassword(email: email, password: password);
+
+      // 2. Fetch the user's profile to check their role
+      if (response.user != null) {
+        final profileData = await supabase
+            .from('profiles')
+            .select('role_id')
+            .eq('id', response.user!.id)
+            .single();
+
+        if (mounted) {
+          // Role ID 2 represents the 'admin' role based on our SQL setup
+          if (profileData['role_id'] == 2) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+          } else {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
+          }
+        }
+      }
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,35 +92,32 @@ class SignInScreen extends StatelessWidget {
 
                 const Text('Email', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 8),
-                const CustomTextField(hint: 'name@email.com', icon: Icons.email_outlined),
+                CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
                 const SizedBox(height: 20),
 
                 const Text('Password', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 8),
-                const CustomTextField(hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
+                CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
                 
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {},
-                    child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13)),
-                  ),
+                  child: TextButton(onPressed: () {}, child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13))),
                 ),
                 const SizedBox(height: 10),
 
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
-                    },
+                    onPressed: _isLoading ? null : _signIn,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.appYellow,
                       foregroundColor: Colors.black87,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: _isLoading 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
+                      : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 30),

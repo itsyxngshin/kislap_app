@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- 1. Import the package
 import 'theme/app_colors.dart';
 import 'screens/auth/onboarding_screen.dart';
 
-void main() {
+void main() async {
+  // 2. Ensure Flutter is ready before doing anything async
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 3. Initialize the Supabase connection
+  await Supabase.initialize(
+    url: 'YOUR_PROJECT_URL_HERE', // e.g., https://xyz.supabase.co
+    anonKey: 'YOUR_ANON_PUBLIC_KEY_HERE', 
+  );
+
   runApp(const KislapApp());
 }
 
@@ -18,10 +28,7 @@ class KislapApp extends StatelessWidget {
         fontFamily: 'Roboto',
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.transparent,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.appYellow,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.appYellow, brightness: Brightness.dark),
       ),
       home: const OnboardingScreen(),
     );
