@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import 'add_device_screen.dart';
+import '../../widgets/guest_view.dart'; // Make sure to import it at the top of the file!
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,6 +12,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isGuest = false;
   String _userName = 'Loading...';
   double _totalMonthlyCost = 0.0;
   double _totalDailyKwh = 0.0;
@@ -18,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   List<dynamic> _topDevices = [];
   bool _isLoading = true;
-  bool _isGuest = false;
+  
   
 
   @override
@@ -95,6 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+    }
+
+    if (_isGuest) {
+      
+      return const GuestView(
+        icon: Icons.bolt,
+        title: 'Unlock Your Dashboard',
+        subtitle: 'Create an account to start adding appliances, tracking your energy usage, and estimating your monthly bill.',
+      );
     }
 
     return SafeArea(

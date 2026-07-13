@@ -16,8 +16,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _email = '';
   
   bool _isDarkMode = true;
-  bool _highUsageAlerts = true;
-  bool _weeklySummary = false;
+  final bool _highUsageAlerts = true;
+  final bool _weeklySummary = false;
   bool _isLoading = true;
 
   @override
@@ -27,11 +27,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadUserProfile() async {
+
+    
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       
-      if (user != null) {
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _fullName = 'Guest User';
+            _email = 'Not logged in';
+            _selectedLocation = 'mainland';
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      else{
         _email = user.email ?? '';
         
         final profileData = await supabase
@@ -117,7 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
                   _buildLocationOption('Mainland (₱11.0806/kWh)', 'mainland'),
@@ -131,7 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Text('APPEARANCE', style: TextStyle(color: AppColors.textHintColor, fontSize: 12, letterSpacing: 1.2)),
             const SizedBox(height: 10),
             Container(
-              decoration: BoxDecoration(color: AppColors.inputBackground.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
               child: _buildSwitchOption(title: 'Dark Mode', icon: Icons.dark_mode_outlined, value: _isDarkMode, onChanged: (val) => setState(() => _isDarkMode = val)),
             ),
             const SizedBox(height: 40),
@@ -139,9 +153,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _signOut,
-                icon: const Icon(Icons.logout, color: AppColors.textHintColor),
-                label: const Text('Sign out', style: TextStyle(color: AppColors.textHintColor, fontSize: 16)),
+                // If they are a guest, send them to Log In. Otherwise, Sign Out.
+                onPressed: _email == 'Not logged in' 
+                    ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen()))
+                    : _signOut,
+                icon: Icon(_email == 'Not logged in' ? Icons.login : Icons.logout, color: AppColors.textHintColor),
+                label: Text(_email == 'Not logged in' ? 'Log in' : 'Sign out', style: const TextStyle(color: AppColors.textHintColor, fontSize: 16)),
                 style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.textHintColor), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               ),
             ),
@@ -158,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: isSelected ? Colors.white.withOpacity(0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: isSelected ? Colors.white.withValues(alpha: 0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -182,7 +199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
             ],
           ),
-          Switch(value: value, onChanged: onChanged, activeColor: Colors.black87, activeTrackColor: AppColors.appYellow, inactiveThumbColor: AppColors.textHintColor, inactiveTrackColor: Colors.white10),
+          Switch(value: value, onChanged: onChanged, activeThumbColor: Colors.black87, activeTrackColor: AppColors.appYellow, inactiveThumbColor: AppColors.textHintColor, inactiveTrackColor: Colors.white10),
         ],
       ),
     );
