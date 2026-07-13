@@ -9,8 +9,8 @@ void main() async {
 
   // 3. Initialize the Supabase connection
   await Supabase.initialize(
-    url: 'YOUR_PROJECT_URL_HERE', // e.g., https://xyz.supabase.co
-    anonKey: 'YOUR_ANON_PUBLIC_KEY_HERE', 
+    url: 'https://yaquyjfowoyomxcibemy.supabase.co', // e.g., https://xyz.supabase.co
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXV5amZvd295b214Y2liZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4ODU2MDEsImV4cCI6MjA5OTQ2MTYwMX0.l8u3R8elcOQnrj9ZcGhaQZAlErYYLJZ-bcF3LzCRHHM', 
   );
 
   runApp(const KislapApp());

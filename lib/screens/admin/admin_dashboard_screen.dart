@@ -16,29 +16,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   
   bool _isUpdating = false;
   bool _isLoadingData = true;
-  String _currentBillingMonth = '2026-07-01'; // Based on our SQL setup
+  
+  // Default to July 2026 (the current active period in our prototype)
+  DateTime _selectedMonth = DateTime(2026, 7, 1);
+  
+  // Generate a list of 24 months (all of 2025 and 2026) for the dropdown
+  final List<DateTime> _monthOptions = List.generate(24, (i) => DateTime(2025 + (i ~/ 12), (i % 12) + 1, 1));
 
   @override
   void initState() {
     super.initState();
-    _fetchCurrentRates();
+    _fetchRatesForSelectedMonth();
   }
 
-  Future<void> _fetchCurrentRates() async {
+  // Helper to format DateTime into "YYYY-MM-01" for Postgres
+  String _toDbDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-01';
+  }
+
+  // Helper to format DateTime into "Month YYYY" for the UI Dropdown
+  String _formatMonth(DateTime date) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${monthNames[date.month - 1]} ${date.year}';
+  }
+
+  Future<void> _fetchRatesForSelectedMonth() async {
+    setState(() => _isLoadingData = true);
+    final String dbDate = _toDbDate(_selectedMonth);
+
     try {
-      // Get the most recent billing rate record
+      // maybeSingle() returns null if the month doesn't exist yet, avoiding a crash
       final data = await Supabase.instance.client
           .from('billing_rates')
           .select()
-          .order('billing_month', ascending: false)
-          .limit(1)
-          .single();
+          .eq('billing_month', dbDate)
+          .maybeSingle();
 
       if (mounted) {
         setState(() {
-          _mainlandRateController.text = data['mainland_rate'].toString();
-          _islandRateController.text = data['island_rate'].toString();
-          _currentBillingMonth = data['billing_month'].toString();
+          if (data != null) {
+            _mainlandRateController.text = data['mainland_rate'].toString();
+            _islandRateController.text = data['island_rate'].toString();
+          } else {
+            // Clear the fields so the admin can enter new rates
+            _mainlandRateController.clear();
+            _islandRateController.clear();
+          }
           _isLoadingData = false;
         });
       }
@@ -50,28 +73,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _updateRates() async {
+  Future<void> _saveRates() async {
     if (_mainlandRateController.text.isEmpty || _islandRateController.text.isEmpty) return;
 
     setState(() => _isUpdating = true);
+    final String dbDate = _toDbDate(_selectedMonth);
     
     try {
-      await Supabase.instance.client
-          .from('billing_rates')
-          .update({
-            'mainland_rate': double.parse(_mainlandRateController.text),
-            'island_rate': double.parse(_islandRateController.text),
-          })
-          .eq('billing_month', _currentBillingMonth); // Update the active month
+      final supabase = Supabase.instance.client;
+      
+      // 1. Check if the month already exists
+      final existing = await supabase.from('billing_rates').select().eq('billing_month', dbDate).maybeSingle();
+
+      if (existing != null) {
+        // 2. If it exists, UPDATE it
+        await supabase.from('billing_rates').update({
+          'mainland_rate': double.parse(_mainlandRateController.text),
+          'island_rate': double.parse(_islandRateController.text),
+        }).eq('billing_month', dbDate);
+      } else {
+        // 3. If it's a new month, INSERT it
+        await supabase.from('billing_rates').insert({
+          'billing_month': dbDate,
+          'mainland_rate': double.parse(_mainlandRateController.text),
+          'island_rate': double.parse(_islandRateController.text),
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Global rates successfully updated!'), backgroundColor: Colors.green),
+          SnackBar(content: Text('Rates saved for ${_formatMonth(_selectedMonth)}!'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating: $e'), backgroundColor: AppColors.adminRed));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
       }
     } finally {
       if (mounted) setState(() => _isUpdating = false);
@@ -81,11 +117,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const SignInScreen()),
-        (route) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
     }
   }
 
@@ -113,10 +145,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white),
-              onPressed: _signOut,
-            )
+            IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _signOut)
           ],
         ),
         body: _isLoadingData
@@ -126,6 +155,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    
+                    // Month Selector Dropdown
+                    const Text('Select Billing Month', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<DateTime>(
+                      value: _selectedMonth,
+                      dropdownColor: AppColors.inputBackground,
+                      icon: const Icon(Icons.calendar_today, color: AppColors.textHintColor, size: 20),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AppColors.inputBackground,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                      items: _monthOptions.map((date) {
+                        return DropdownMenuItem(value: date, child: Text(_formatMonth(date)));
+                      }).toList(),
+                      onChanged: (DateTime? newValue) {
+                        if (newValue != null) {
+                          setState(() => _selectedMonth = newValue);
+                          _fetchRatesForSelectedMonth(); // Fetch new data when changed
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 30),
+
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -136,13 +191,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Rate Management',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
+                          const Text('Rate Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                           const SizedBox(height: 8),
                           Text(
-                            'Updating rates for billing month: $_currentBillingMonth. These changes reflect globally.',
+                            'Enter the exact ₱/kWh rates for ${_formatMonth(_selectedMonth)}. If fields are blank, this month has not been configured yet.',
                             style: const TextStyle(color: AppColors.textHintColor, fontSize: 13, height: 1.5),
                           ),
                         ],
@@ -183,17 +235,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: _isUpdating ? null : _updateRates,
+                        onPressed: _isUpdating ? null : _saveRates,
                         icon: _isUpdating 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.cloud_upload),
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
+                            : const Icon(Icons.save),
                         label: Text(
-                          _isUpdating ? 'Pushing Updates...' : 'Update Global Rates',
+                          _isUpdating ? 'Saving...' : 'Save Rates',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.adminRed,
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.appYellow,
+                          foregroundColor: Colors.black87,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
