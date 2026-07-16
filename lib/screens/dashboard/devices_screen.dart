@@ -21,14 +21,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
     // 1. Fetch user's devices
     final devices = await supabase.from('appliances').select().eq('user_id', userId).order('created_at');
     
-    // 2. Fetch user's location preference
-    final profile = await supabase.from('profiles').select('location').eq('id', userId).single();
-    final location = profile['location'] as String;
+    // 2. Safely fetch profile with maybeSingle()
+    final profile = await supabase.from('profiles').select('location').eq('id', userId).maybeSingle();
+    final location = profile?['location'] as String? ?? 'mainland'; // Fallback to mainland
 
-    // 3. Fetch the current billing rate
-    final rateData = await supabase.from('billing_rates').select().order('billing_month', ascending: false).limit(1).single();
+    // 3. Safely fetch rates with maybeSingle()
+    final rateData = await supabase.from('billing_rates').select().order('billing_month', ascending: false).limit(1).maybeSingle();
     
-    final activeRate = location == 'island' ? rateData['island_rate'] : rateData['mainland_rate'];
+    // Provide a default fallback rate just in case the admin table is empty
+    final double fallbackRate = location == 'island' ? 11.33 : 11.08;
+    final activeRate = rateData != null 
+        ? (location == 'island' ? rateData['island_rate'] : rateData['mainland_rate']) as num 
+        : fallbackRate;
 
     return {
       'devices': devices,
