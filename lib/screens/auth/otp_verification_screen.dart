@@ -26,9 +26,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Future<void> _verifyCode() async {
     final code = _otpController.text.trim();
 
-    if (code.length != 6) {
+    if (code.length != 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 6-digit code.'), backgroundColor: AppColors.adminRed),
+        const SnackBar(content: Text('Please enter a valid 8-digit code.'), backgroundColor: AppColors.adminRed),
       );
       return;
     }
@@ -91,7 +91,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const Text('Check your email', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 8),
               Text(
-                'We sent a 6-digit code to ${widget.email}. Enter it below to verify your account.',
+                'We sent a 8-digit code to ${widget.email}. Enter it below to verify your account.',
                 style: const TextStyle(color: AppColors.textHintColor, fontSize: 14, height: 1.5),
               ),
               const SizedBox(height: 40),
@@ -101,7 +101,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               TextField(
                 controller: _otpController,
                 keyboardType: TextInputType.number,
-                maxLength: 6,
+                maxLength: 8,
                 style: const TextStyle(color: Colors.white, fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
