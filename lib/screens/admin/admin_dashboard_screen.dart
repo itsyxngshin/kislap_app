@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart'; // MUST IMPORT THIS!
 import '../auth/sign_in_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -12,131 +13,55 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-
   int _totalUsers = 0;
   double _globalDailyKwh = 0;
-
-  Future<void> _fetchAdminAnalytics() async {
-    final supabase = Supabase.instance.client;
-    
-    // 1. Get total registered users
-    final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
-    
-    // 2. Calculate global cumulative consumption
-    final allAppliances = await supabase.from('appliances').select('watts, hours_per_day, quantity');
-    double totalKwh = 0;
-    
-    for (var app in allAppliances) {
-      totalKwh += ((app['watts'] / 1000) * app['hours_per_day'] * app['quantity']);
-    }
-
-    setState(() {
-      _totalUsers = userCountResponse.count ?? 0;
-      _globalDailyKwh = totalKwh;
-    });
-  }
-
-  // 3. Render the Chart Widget
-  Widget _buildHistoricalGraph() {
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.inputBackground.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('System-Wide Consumption Trend', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    // In a production environment, this array will be populated 
-                    // by a SQL query fetching daily usage snapshots.
-                    spots: const [
-                      FlSpot(1, 120),
-                      FlSpot(2, 210),
-                      FlSpot(3, 180),
-                      FlSpot(4, 300),
-                      FlSpot(5, 280),
-                      FlSpot(6, 400),
-                    ],
-                    isCurved: true,
-                    color: AppColors.appYellow,
-                    barWidth: 4,
-                    isStrokeCapRound: true,
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppColors.appYellow.withOpacity(0.2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
   final TextEditingController _mainlandRateController = TextEditingController();
   final TextEditingController _islandRateController = TextEditingController();
   
   bool _isUpdating = false;
   bool _isLoadingData = true;
   
-  // Default to July 2026 (the current active period in our prototype)
   DateTime _selectedMonth = DateTime(2026, 7, 1);
-  
-  // Generate a list of 24 months (all of 2025 and 2026) for the dropdown
   final List<DateTime> _monthOptions = List.generate(24, (i) => DateTime(2025 + (i ~/ 12), (i % 12) + 1, 1));
 
   @override
   void initState() {
     super.initState();
     _fetchRatesForSelectedMonth();
+    _fetchAdminAnalytics();
   }
 
-  // Helper to format DateTime into "YYYY-MM-01" for Postgres
-  String _toDbDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-01';
-  }
+  String _toDbDate(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-01';
+  String _formatMonth(DateTime date) => '${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.month - 1]} ${date.year}';
 
-  // Helper to format DateTime into "Month YYYY" for the UI Dropdown
-  String _formatMonth(DateTime date) {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${monthNames[date.month - 1]} ${date.year}';
+  Future<void> _fetchAdminAnalytics() async {
+    final supabase = Supabase.instance.client;
+    final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
+    final allAppliances = await supabase.from('appliances').select('watts, hours_per_day, quantity');
+    
+    double totalKwh = 0;
+    for (var app in allAppliances) {
+      totalKwh += ((app['watts'] / 1000) * app['hours_per_day'] * app['quantity']);
+    }
+
+    if (mounted) {
+      setState(() {
+        _totalUsers = userCountResponse.count ?? 0;
+        _globalDailyKwh = totalKwh;
+      });
+    }
   }
 
   Future<void> _fetchRatesForSelectedMonth() async {
     setState(() => _isLoadingData = true);
-    final String dbDate = _toDbDate(_selectedMonth);
-
     try {
-      // maybeSingle() returns null if the month doesn't exist yet, avoiding a crash
-      final data = await Supabase.instance.client
-          .from('billing_rates')
-          .select()
-          .eq('billing_month', dbDate)
-          .maybeSingle();
-
+      final data = await Supabase.instance.client.from('billing_rates').select().eq('billing_month', _toDbDate(_selectedMonth)).maybeSingle();
       if (mounted) {
         setState(() {
           if (data != null) {
             _mainlandRateController.text = data['mainland_rate'].toString();
             _islandRateController.text = data['island_rate'].toString();
           } else {
-            // Clear the fields so the admin can enter new rates
             _mainlandRateController.clear();
             _islandRateController.clear();
           }
@@ -144,49 +69,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingData = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load rates: $e')));
-      }
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
   Future<void> _saveRates() async {
     if (_mainlandRateController.text.isEmpty || _islandRateController.text.isEmpty) return;
-
     setState(() => _isUpdating = true);
     final String dbDate = _toDbDate(_selectedMonth);
     
     try {
       final supabase = Supabase.instance.client;
-      
-      // 1. Check if the month already exists
       final existing = await supabase.from('billing_rates').select().eq('billing_month', dbDate).maybeSingle();
 
       if (existing != null) {
-        // 2. If it exists, UPDATE it
         await supabase.from('billing_rates').update({
           'mainland_rate': double.parse(_mainlandRateController.text),
           'island_rate': double.parse(_islandRateController.text),
         }).eq('billing_month', dbDate);
       } else {
-        // 3. If it's a new month, INSERT it
         await supabase.from('billing_rates').insert({
           'billing_month': dbDate,
           'mainland_rate': double.parse(_mainlandRateController.text),
           'island_rate': double.parse(_islandRateController.text),
         });
       }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rates saved for ${_formatMonth(_selectedMonth)}!'), backgroundColor: Colors.green),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rates saved for ${_formatMonth(_selectedMonth)}!'), backgroundColor: Colors.green));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
     } finally {
       if (mounted) setState(() => _isUpdating = false);
     }
@@ -194,9 +104,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
-    }
+    if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
   }
 
   @override
@@ -208,22 +116,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Dynamic theme colors
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     return Container(
-      decoration: AppColors.globalGradient,
+      decoration: AppTheme.globalBackground(context), // Replaced static gradient!
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.admin_panel_settings, color: AppColors.adminRed),
-              SizedBox(width: 10),
-              Text('Admin Control', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const Icon(Icons.admin_panel_settings, color: AppColors.adminRed),
+              const SizedBox(width: 10),
+              Text('Admin Control', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
             ],
           ),
           actions: [
-            IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _signOut)
+            IconButton(icon: Icon(Icons.logout, color: textColor), onPressed: _signOut)
           ],
         ),
         body: _isLoadingData
@@ -233,18 +146,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    
+                    // System Analytics Summary
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.group, color: Colors.blueAccent, size: 24),
+                                const SizedBox(height: 8),
+                                Text('$_totalUsers', style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.bold)),
+                                Text('Total Users', style: TextStyle(color: hintColor, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.bolt, color: AppColors.appYellow, size: 24),
+                                const SizedBox(height: 8),
+                                Text('${_globalDailyKwh.toStringAsFixed(1)} kWh', style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.bold)),
+                                Text('Daily System Draw', style: TextStyle(color: hintColor, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Historical Chart
+                    _buildHistoricalGraph(surfaceColor, textColor),
+                    const SizedBox(height: 30),
+
                     // Month Selector Dropdown
-                    const Text('Select Billing Month', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text('Select Billing Month', style: TextStyle(color: hintColor, fontSize: 13)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<DateTime>(
                       value: _selectedMonth,
-                      dropdownColor: AppColors.inputBackground,
-                      icon: const Icon(Icons.calendar_today, color: AppColors.textHintColor, size: 20),
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      dropdownColor: surfaceColor,
+                      icon: Icon(Icons.calendar_today, color: hintColor, size: 20),
+                      style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: AppColors.inputBackground,
+                        fillColor: surfaceColor,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       items: _monthOptions.map((date) {
@@ -253,7 +207,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       onChanged: (DateTime? newValue) {
                         if (newValue != null) {
                           setState(() => _selectedMonth = newValue);
-                          _fetchRatesForSelectedMonth(); // Fetch new data when changed
+                          _fetchRatesForSelectedMonth(); 
                         }
                       },
                     ),
@@ -262,49 +216,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: AppColors.inputBackground.withOpacity(0.5),
+                        color: surfaceColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.adminRed.withOpacity(0.5)),
+                        border: Border.all(color: AppColors.adminRed.withValues(alpha: 0.5)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Rate Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text('Rate Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
                           const SizedBox(height: 8),
                           Text(
                             'Enter the exact ₱/kWh rates for ${_formatMonth(_selectedMonth)}. If fields are blank, this month has not been configured yet.',
-                            style: const TextStyle(color: AppColors.textHintColor, fontSize: 13, height: 1.5),
+                            style: TextStyle(color: hintColor, fontSize: 13, height: 1.5),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 40),
 
-                    const Text('Mainland Rate (₱ / kWh)', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text('Mainland Rate (₱ / kWh)', style: TextStyle(color: hintColor, fontSize: 13)),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _mainlandRateController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.bolt, color: AppColors.appYellow),
                         filled: true,
-                        fillColor: AppColors.inputBackground,
+                        fillColor: surfaceColor,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                     ),
                     const SizedBox(height: 20),
 
-                    const Text('Island Rate (₱ / kWh)', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text('Island Rate (₱ / kWh)', style: TextStyle(color: hintColor, fontSize: 13)),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _islandRateController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
                         prefixIcon: const Icon(Icons.waves, color: Colors.cyanAccent),
                         filled: true,
-                        fillColor: AppColors.inputBackground,
+                        fillColor: surfaceColor,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                     ),
@@ -321,17 +275,63 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           _isUpdating ? 'Saving...' : 'Save Rates',
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.appYellow,
-                          foregroundColor: Colors.black87,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
+                        // The button styling is handled automatically by the global AppTheme!
                       ),
                     ),
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildHistoricalGraph(Color surfaceColor, Color textColor) {
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surfaceColor.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('System-Wide Consumption Trend', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: const [
+                      FlSpot(1, 120),
+                      FlSpot(2, 210),
+                      FlSpot(3, 180),
+                      FlSpot(4, 300),
+                      FlSpot(5, 280),
+                      FlSpot(6, 400),
+                    ],
+                    isCurved: true,
+                    color: AppColors.appYellow,
+                    barWidth: 4,
+                    isStrokeCapRound: true,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.appYellow.withValues(alpha: 0.2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

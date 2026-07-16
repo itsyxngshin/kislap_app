@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // <-- 1. Import the package
+import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';
 import 'screens/auth/onboarding_screen.dart';
+
+// 1. Create a global notifier. We default to Dark Mode to preserve your original look.
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
 void main() async {
   // 2. Ensure Flutter is ready before doing anything async
@@ -21,16 +25,18 @@ class KislapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Kislap App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.transparent,
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.appYellow, brightness: Brightness.dark),
-      ),
-      home: const OnboardingScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (_, ThemeMode currentMode, __) {
+        return MaterialApp(
+          title: 'Kislap',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: currentMode, // 3. Dynamically set the mode
+          home: const OnboardingScreen(),
+        );
+      },
     );
   }
 }
