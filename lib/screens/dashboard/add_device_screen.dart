@@ -16,7 +16,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
   final TextEditingController _hoursController = TextEditingController(text: '0');
   
   AppliancePreset? _selectedPreset;
-  int _quantity = 1;
+  final int _quantity = 1;
   bool _isSaving = false;
 
   @override
@@ -107,7 +107,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
               const Text('Appliance Type (Estimates)', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 8),
               DropdownButtonFormField<AppliancePreset>(
-                value: _selectedPreset,
+                initialValue: _selectedPreset,
                 dropdownColor: AppColors.inputBackground,
                 icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textHintColor),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
