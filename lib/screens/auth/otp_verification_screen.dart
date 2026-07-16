@@ -105,7 +105,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 style: const TextStyle(color: Colors.white, fontSize: 24, letterSpacing: 8.0, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
-                  counterText: '', // Hides the "0/6" character counter
+                  counterText: '', // Hides the "0/8" character counter
                   filled: true,
                   fillColor: AppColors.inputBackground,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
