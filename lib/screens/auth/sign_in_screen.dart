@@ -38,32 +38,51 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final supabase = Supabase.instance.client;
-      
-      // 1. Authenticate with Supabase
-      final AuthResponse response = await supabase.auth.signInWithPassword(email: email, password: password);
+      // 1. Authenticate the user
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-      // 2. Fetch the user's profile to check their role
-      if (response.user != null) {
-        final profileData = await supabase
+      final user = authResponse.user;
+      
+      if (user != null) {
+        // 2. Safely fetch the profile data using maybeSingle() instead of single()
+        final profileData = await Supabase.instance.client
             .from('profiles')
             .select('role_id')
-            .eq('id', response.user!.id)
-            .single();
+            .eq('id', user.id)
+            .maybeSingle();
+
+        // 3. Extract the role, defaulting to 1 (standard user) if the profile row is missing
+        final int roleId = profileData?['role_id'] as int? ?? 1;
 
         if (mounted) {
-          // Role ID 2 represents the 'admin' role based on our SQL setup
-          if (profileData['role_id'] == 2) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+          // 4. Route based on the role
+          if (roleId == 2) {
+            // Import AdminDashboardScreen at the top if you haven't already
+            Navigator.pushAndRemoveUntil(
+              context, 
+              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()), 
+              (route) => false
+            );
           } else {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
+            Navigator.pushAndRemoveUntil(
+              context, 
+              MaterialPageRoute(builder: (_) => const DashboardShell()), 
+              (route) => false
+            );
           }
         }
       }
     } on AuthException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
