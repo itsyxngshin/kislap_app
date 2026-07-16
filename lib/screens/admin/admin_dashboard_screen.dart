@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../auth/sign_in_screen.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -11,6 +12,83 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+
+  int _totalUsers = 0;
+  double _globalDailyKwh = 0;
+
+  Future<void> _fetchAdminAnalytics() async {
+    final supabase = Supabase.instance.client;
+    
+    // 1. Get total registered users
+    final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
+    
+    // 2. Calculate global cumulative consumption
+    final allAppliances = await supabase.from('appliances').select('watts, hours_per_day, quantity');
+    double totalKwh = 0;
+    
+    for (var app in allAppliances) {
+      totalKwh += ((app['watts'] / 1000) * app['hours_per_day'] * app['quantity']);
+    }
+
+    setState(() {
+      _totalUsers = userCountResponse.count ?? 0;
+      _globalDailyKwh = totalKwh;
+    });
+  }
+
+  // 3. Render the Chart Widget
+  Widget _buildHistoricalGraph() {
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.inputBackground.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('System-Wide Consumption Trend', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    // In a production environment, this array will be populated 
+                    // by a SQL query fetching daily usage snapshots.
+                    spots: const [
+                      FlSpot(1, 120),
+                      FlSpot(2, 210),
+                      FlSpot(3, 180),
+                      FlSpot(4, 300),
+                      FlSpot(5, 280),
+                      FlSpot(6, 400),
+                    ],
+                    isCurved: true,
+                    color: AppColors.appYellow,
+                    barWidth: 4,
+                    isStrokeCapRound: true,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.appYellow.withOpacity(0.2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   final TextEditingController _mainlandRateController = TextEditingController();
   final TextEditingController _islandRateController = TextEditingController();
   

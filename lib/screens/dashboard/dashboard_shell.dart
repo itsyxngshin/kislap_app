@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../auth/lockdown_screen.dart';
 
 // This is the main shell of the dashboard, containing the navigation bar and the body that switches between different screens.
 import 'home_screen.dart'; // We will create this next
@@ -27,6 +29,41 @@ class _DashboardShellState extends State<DashboardShell> {
     const ReportsScreen(),
     const SettingsScreen(),
   ];
+
+  Future<void> _checkSystemStatus() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    
+    if (user == null) return;
+
+    // 1. Check Global Maintenance Mode
+    final settings = await supabase.from('app_settings').select().eq('id', 1).single();
+    if (settings['is_maintenance_mode'] == true) {
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (_) => LockdownScreen(message: settings['lock_message'])), 
+          (route) => false
+        );
+      }
+      return;
+    }
+
+    // 2. Check Individual Client Account Status (Payment/Suspension)
+    final profile = await supabase.from('profiles').select('is_active').eq('id', user.id).single();
+    if (profile['is_active'] == false) {
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context, 
+          MaterialPageRoute(builder: (_) => const LockdownScreen(
+            message: 'Your account has been suspended. Please contact administration to settle your account.',
+            isMaintenance: false,
+          )), 
+          (route) => false
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
