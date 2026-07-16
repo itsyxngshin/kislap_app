@@ -30,6 +30,13 @@ class _DashboardShellState extends State<DashboardShell> {
     const SettingsScreen(),
   ];
 
+  // 1. ADDED THIS: The check must run as soon as the shell is initialized
+  @override
+  void initState() {
+    super.initState();
+    _checkSystemStatus();
+  }
+
   Future<void> _checkSystemStatus() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
@@ -42,7 +49,8 @@ class _DashboardShellState extends State<DashboardShell> {
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context, 
-          MaterialPageRoute(builder: (_) => LockdownScreen(message: settings['lock_message'])), 
+          // 2. FIXED THIS: Safely cast the dynamic database field to a String using ?.toString()
+          MaterialPageRoute(builder: (_) => LockdownScreen(message: settings['lock_message']?.toString() ?? 'System maintenance in progress.')), 
           (route) => false
         );
       }
@@ -71,21 +79,19 @@ class _DashboardShellState extends State<DashboardShell> {
       decoration: AppColors.globalGradient,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // CRUCIAL: This allows the scrollable body to pass behind the floating nav bar
         extendBody: true, 
         body: _screens[_currentIndex],
         
-        // The Custom Glassmorphic Navigation Bar
         bottomNavigationBar: Padding(
           padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(30),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), // The frost effect
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), 
               child: Container(
                 height: 70,
                 decoration: BoxDecoration(
-                  color: AppColors.navBackground.withValues(alpha: 0.6), // Semi-transparent
+                  color: AppColors.navBackground.withValues(alpha: 0.6), 
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
                 ),
@@ -107,7 +113,6 @@ class _DashboardShellState extends State<DashboardShell> {
     );
   }
 
-  // Helper method to build each individual tap target
   Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index) {
     final isSelected = _currentIndex == index;
     return GestureDetector(
