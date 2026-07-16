@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../dashboard/dashboard_shell.dart';
+import 'otp_verification_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -49,10 +50,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       // 2. If successful, navigate directly into the app
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
+        Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const DashboardShell()),
-          (route) => false, // Clears the navigation stack
+          MaterialPageRoute(builder: (_) => OtpVerificationScreen(email: email)),
         );
       }
     } on AuthException catch (e) {
