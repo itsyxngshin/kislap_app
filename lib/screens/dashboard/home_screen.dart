@@ -11,7 +11,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> {
   String _userName = 'Loading...';
   double _totalMonthlyCost = 0.0;
   double _totalDailyKwh = 0.0;
