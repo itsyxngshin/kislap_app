@@ -38,38 +38,47 @@ class _DashboardShellState extends State<DashboardShell> {
   }
 
   Future<void> _checkSystemStatus() async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    
-    if (user == null) return;
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      
+      if (user == null) return;
 
-    // 1. Check Global Maintenance Mode
-    final settings = await supabase.from('app_settings').select().eq('id', 1).single();
-    if (settings['is_maintenance_mode'] == true) {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context, 
-          // 2. FIXED THIS: Safely cast the dynamic database field to a String using ?.toString()
-          MaterialPageRoute(builder: (_) => LockdownScreen(message: settings['lock_message']?.toString() ?? 'System maintenance in progress.')), 
-          (route) => false
-        );
+      // 1. Safely Check Global Maintenance Mode
+      final settings = await supabase.from('app_settings').select().eq('id', 1).maybeSingle();
+      
+      if (settings != null && settings['is_maintenance_mode'] == true) {
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context, 
+            MaterialPageRoute(builder: (_) => LockdownScreen(
+              message: settings['lock_message']?.toString() ?? 'System maintenance in progress.'
+            )), 
+            (route) => false
+          );
+        }
+        return; // Stop here if under maintenance
       }
-      return;
-    }
 
-    // 2. Check Individual Client Account Status (Payment/Suspension)
-    final profile = await supabase.from('profiles').select('is_active').eq('id', user.id).single();
-    if (profile['is_active'] == false) {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context, 
-          MaterialPageRoute(builder: (_) => const LockdownScreen(
-            message: 'Your account has been suspended. Please contact administration to settle your account.',
-            isMaintenance: false,
-          )), 
-          (route) => false
-        );
+      // 2. Safely Check Individual Client Account Status
+      final profile = await supabase.from('profiles').select('is_active').eq('id', user.id).maybeSingle();
+      
+      if (profile != null && profile['is_active'] == false) {
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context, 
+            MaterialPageRoute(builder: (_) => const LockdownScreen(
+              message: 'Your account has been suspended. Please contact administration to settle your account.',
+              isMaintenance: false,
+            )), 
+            (route) => false
+          );
+        }
       }
+    } catch (e) {
+      // If the query fails (e.g., poor internet), we silently catch it 
+      // so the app doesn't crash, allowing the user to continue normally.
+      debugPrint('Error checking system status: $e');
     }
   }
 
