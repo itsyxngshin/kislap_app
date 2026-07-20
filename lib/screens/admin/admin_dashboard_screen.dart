@@ -47,11 +47,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final supabase = Supabase.instance.client;
       final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
-      final allAppliances = await supabase.from('appliances').select('watts, hours_per_day, quantity');
+      
+      // Execute a relational join to calculate the global draw from synced offline data
+      final allInventory = await supabase.from('user_inventory').select('''
+        adjusted_hours,
+        appliance_presets (
+          preset_wattage
+        )
+      ''');
       
       double totalKwh = 0;
-      for (var app in allAppliances) {
-        totalKwh += ((app['watts'] / 1000) * app['hours_per_day'] * app['quantity']);
+      for (var item in allInventory) {
+        final hours = item['adjusted_hours'] as num? ?? 0;
+        final preset = item['appliance_presets'] as Map<String, dynamic>?;
+        
+        if (preset != null) {
+          final watts = preset['preset_wattage'] as num? ?? 0;
+          totalKwh += ((watts / 1000) * hours);
+        }
       }
 
       if (mounted) {
@@ -60,7 +73,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _globalDailyKwh = totalKwh;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Analytics Fetch Error: $e');
+    }
   }
 
   Future<void> _fetchRatesForSelectedMonth() async {
@@ -169,7 +184,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     return DefaultTabController(
-      length: 3, // Three tabs: Analytics, Rates, Lockdown
+      length: 3, 
       child: Container(
         decoration: AppTheme.globalBackground(context),
         child: Scaffold(
@@ -200,13 +215,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           body: TabBarView(
             children: [
-              // --- TAB 1: ANALYTICS ---
               _buildAnalyticsTab(surfaceColor, textColor, hintColor),
-
-              // --- TAB 2: RATES ---
               _buildRatesTab(surfaceColor, textColor, hintColor),
-
-              // --- TAB 3: LOCKDOWN / MAINTENANCE ---
               _buildLockdownTab(surfaceColor, textColor, hintColor),
             ],
           ),
@@ -214,8 +224,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     );
   }
-
-  // --- TAB UI BUILDERS ---
 
   Widget _buildAnalyticsTab(Color surfaceColor, Color textColor, Color hintColor) {
     return RefreshIndicator(
@@ -281,7 +289,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Text('Select Billing Month', style: TextStyle(color: hintColor, fontSize: 13)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<DateTime>(
-                  value: _selectedMonth,
+                  initialValue: _selectedMonth,
                   dropdownColor: surfaceColor,
                   icon: Icon(Icons.calendar_today, color: hintColor, size: 20),
                   style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
@@ -396,7 +404,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 30),
           
-          // Toggle row
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(12)),
@@ -415,7 +422,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   onChanged: (bool value) {
                     setState(() => _isMaintenanceMode = value);
                   },
-                  activeColor: AppColors.adminRed,
+                  activeThumbColor: AppColors.adminRed,
                 ),
               ],
             ),

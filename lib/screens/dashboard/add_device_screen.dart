@@ -1,101 +1,131 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // <-- Import Supabase
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
-import '../../models/appliance_preset.dart';
+import '../../theme/app_theme.dart';
+import '../../services/database_helper.dart';
+import '../../providers/inventory_provider.dart';
 
-class AddDeviceScreen extends StatefulWidget {
+class AddDeviceScreen extends ConsumerStatefulWidget {
   const AddDeviceScreen({super.key});
 
   @override
-  State<AddDeviceScreen> createState() => _AddDeviceScreenState();
+  ConsumerState<AddDeviceScreen> createState() => _AddDeviceScreenState();
 }
 
-class _AddDeviceScreenState extends State<AddDeviceScreen> {
-  final TextEditingController _deviceNameController = TextEditingController();
-  final TextEditingController _wattageController = TextEditingController();
-  final TextEditingController _hoursController = TextEditingController(text: '0');
-  
-  AppliancePreset? _selectedPreset;
-  final int _quantity = 1;
+class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
+  final TextEditingController _customNameController = TextEditingController();
+  final TextEditingController _hoursController = TextEditingController(
+    text: '0',
+  );
+
+  List<Map<String, dynamic>> _presets = [];
+  Map<String, dynamic>? _selectedPreset;
+  bool _isLoadingPresets = true;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _selectedPreset = commonAppliances.first; 
+    _loadLocalPresets();
+  }
+
+  // Load master catalog options directly from local SQLite storage
+  Future<void> _loadLocalPresets() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final presets = await db.query('appliance_presets');
+      if (mounted && presets.isNotEmpty) {
+        setState(() {
+          _presets = presets;
+          _selectedPreset = presets.first;
+          _customNameController.text = _selectedPreset!['appliance_name'];
+        });
+      }
+    } catch (_) {}
+    setState(() => _isLoadingPresets = false);
   }
 
   @override
   void dispose() {
-    _deviceNameController.dispose();
-    _wattageController.dispose();
+    _customNameController.dispose();
     _hoursController.dispose();
     super.dispose();
   }
 
-  // --- THE DATABASE INSERTION LOGIC ---
-  Future<void> _saveDeviceToDatabase() async {
-    // 1. Basic validation
-    if (_deviceNameController.text.isEmpty || _wattageController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill out all fields')));
+  Future<void> _saveUniqueDevice() async {
+    if (_customNameController.text.isEmpty ||
+        _hoursController.text.isEmpty ||
+        _selectedPreset == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please verify inputs')));
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final supabase = Supabase.instance.client;
-      final userId = supabase.auth.currentUser?.id;
+      final double hours = double.parse(_hoursController.text.trim());
 
-      // Note: Because of Row Level Security (RLS), a user MUST be logged in to insert data. 
-      // If no user is logged in (Guest Mode), we catch it here.
-      if (userId == null) {
-        throw Exception("You must be logged in to save devices. Guest saves are disabled.");
-      }
+      // Save directly via the Riverpod state notifier to seamlessly trigger UI refreshes
+      await ref
+          .read(inventoryProvider.notifier)
+          .addAppliance(
+            presetId: _selectedPreset!['id'] as int,
+            customName: _customNameController.text.trim(),
+            defaultHours: hours,
+          );
 
-      // 2. Push to Supabase
-      await supabase.from('appliances').insert({
-        'user_id': userId,
-        'name': _deviceNameController.text.trim(),
-        'category': _selectedPreset?.category ?? 'Other',
-        'watts': double.parse(_wattageController.text.trim()),
-        'hours_per_day': double.parse(_hoursController.text.trim()),
-        'quantity': _quantity,
-      });
-
-      // 3. Success! Show a message and return to the previous screen
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Device saved successfully!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Unique device item added!'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
-      // 4. Handle any errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: AppColors.adminRed),
+          SnackBar(
+            content: Text('Save failed: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
+    if (_isLoadingPresets) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.appYellow),
+        ),
+      );
+    }
+
     return Container(
-      decoration: AppColors.globalGradient,
+      decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Text('Add Device', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text(
+            'Add Item Instance',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+          ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: textColor),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -104,115 +134,108 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Appliance Type (Estimates)', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              Text(
+                'Select Catalog Base',
+                style: TextStyle(color: hintColor, fontSize: 13),
+              ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<AppliancePreset>(
-                initialValue: _selectedPreset,
-                dropdownColor: AppColors.inputBackground,
-                icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textHintColor),
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+              DropdownButtonFormField<Map<String, dynamic>>(
+                value: _selectedPreset,
+                dropdownColor: surfaceColor,
+                icon: Icon(Icons.keyboard_arrow_down, color: hintColor),
+                style: TextStyle(color: textColor, fontSize: 14),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: AppColors.inputBackground,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  fillColor: surfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                items: commonAppliances.map((preset) {
-                  return DropdownMenuItem(value: preset, child: Text(preset.name));
+                items: _presets.map((preset) {
+                  return DropdownMenuItem(
+                    value: preset,
+                    child: Text(
+                      '${preset['appliance_name']} (${preset['preset_wattage']}W)',
+                    ),
+                  );
                 }).toList(),
-                onChanged: (AppliancePreset? newValue) {
-                  setState(() {
-                    _selectedPreset = newValue;
-                    if (newValue != null && newValue.name != 'Custom / Other') {
-                      _deviceNameController.text = newValue.name;
-                      _wattageController.text = newValue.estimatedWatts.toString();
-                    } else {
-                      _deviceNameController.clear();
-                      _wattageController.clear();
-                    }
-                  });
+                onChanged: (Map<String, dynamic>? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedPreset = newValue;
+                      _customNameController.text = newValue['appliance_name'];
+                    });
+                  }
                 },
               ),
               const SizedBox(height: 20),
 
-              const Text('Device Name', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              Text(
+                'Custom Display Tag Name',
+                style: TextStyle(color: hintColor, fontSize: 13),
+              ),
               const SizedBox(height: 8),
               TextField(
-                controller: _deviceNameController,
-                style: const TextStyle(color: Colors.white),
+                controller: _customNameController,
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Ceiling fan, master bedroom',
-                  hintStyle: const TextStyle(color: AppColors.textHintColor),
+                  hintText: 'e.g., Living Room Fan, Kitchen Microwave',
+                  hintStyle: TextStyle(color: hintColor.withValues(alpha: 0.5)),
                   filled: true,
-                  fillColor: AppColors.inputBackground,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  fillColor: surfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
 
-              // Power Draw & Quantity Row
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Power Draw', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _wattageController,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Watts',
-                            hintStyle: const TextStyle(color: AppColors.textHintColor),
-                            filled: true,
-                            fillColor: AppColors.inputBackground,
-                            suffixText: 'W',
-                            suffixStyle: const TextStyle(color: AppColors.textHintColor),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          ),
-                        ),
-                      ],
-                    ),
+              Text(
+                'Baseline Daily Use Hours',
+                style: TextStyle(color: hintColor, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _hoursController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                style: TextStyle(color: textColor),
+                decoration: InputDecoration(
+                  suffixText: 'hrs/day',
+                  suffixStyle: TextStyle(color: hintColor),
+                  filled: true,
+                  fillColor: surfaceColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Hours/day', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _hoursController,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.inputBackground,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
               const SizedBox(height: 40),
 
-              // The Save Button
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isSaving ? null : _saveDeviceToDatabase,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.appYellow,
-                    foregroundColor: Colors.black87,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSaving 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
-                      : const Text('Save Device', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  onPressed: _isSaving ? null : _saveUniqueDevice,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.black87,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Add to Planning space',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],

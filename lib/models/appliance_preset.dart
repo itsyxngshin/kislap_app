@@ -14,4 +14,4 @@ final List<AppliancePreset> commonAppliances = [
   AppliancePreset(name: 'Rice Cooker', estimatedWatts: 400, category: 'Kitchen'),
   AppliancePreset(name: 'LED TV (43-inch)', estimatedWatts: 60, category: 'Entertainment'),
   AppliancePreset(name: 'Washing Machine', estimatedWatts: 500, category: 'Utility'),
-];
+]; 

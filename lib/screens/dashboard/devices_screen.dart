@@ -1,170 +1,226 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/guest_view.dart'; 
+import '../../theme/app_theme.dart';
+import '../../providers/inventory_provider.dart';
+import '../../services/database_helper.dart';
 
-class DevicesScreen extends StatefulWidget {
+class DevicesScreen extends ConsumerStatefulWidget {
   const DevicesScreen({super.key});
 
   @override
-  State<DevicesScreen> createState() => _DevicesScreenState();
+  ConsumerState<DevicesScreen> createState() => _DevicesScreenState();
 }
 
-class _DevicesScreenState extends State<DevicesScreen> {
-  // Master function to fetch all required data
-  Future<Map<String, dynamic>> _fetchDeviceData() async {
-    final supabase = Supabase.instance.client;
-    final userId = supabase.auth.currentUser?.id;
+class _DevicesScreenState extends ConsumerState<DevicesScreen> {
+  double _activeRate = 11.08; // Fallback rate
 
-    if (userId == null) return {'isGuest': true};
+  @override
+  void initState() {
+    super.initState();
+    _fetchLocalRate();
+  }
 
-    // 1. Fetch user's devices
-    final devices = await supabase.from('appliances').select().eq('user_id', userId).order('created_at');
-    
-    // 2. Safely fetch profile with maybeSingle()
-    final profile = await supabase.from('profiles').select('location').eq('id', userId).maybeSingle();
-    final location = profile?['location'] as String? ?? 'mainland'; // Fallback to mainland
-
-    // 3. Safely fetch rates with maybeSingle()
-    final rateData = await supabase.from('billing_rates').select().order('billing_month', ascending: false).limit(1).maybeSingle();
-    
-    // Provide a default fallback rate just in case the admin table is empty
-    final double fallbackRate = location == 'island' ? 11.33 : 11.08;
-    final activeRate = rateData != null 
-        ? (location == 'island' ? rateData['island_rate'] : rateData['mainland_rate']) as num 
-        : fallbackRate;
-
-    return {
-      'devices': devices,
-      'rate': activeRate,
-    };
+  // Fetch the user's localized rate from SQLite
+  Future<void> _fetchLocalRate() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final settings = await db.query('user_settings', limit: 1);
+      if (settings.isNotEmpty && mounted) {
+        setState(() {
+          _activeRate = (settings.first['tariff_rate'] as num).toDouble();
+        });
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: FutureBuilder<Map<String, dynamic>>(
-        future: _fetchDeviceData(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
-          }
+    // 1. Riverpod automatically injects the latest appliance array here!
+    final devices = ref.watch(inventoryProvider);
 
-          if (snapshot.data?['isGuest'] == true) {
-            return const GuestView(
-              icon: Icons.kitchen,
-              title: 'Your Device List',
-              subtitle: 'Log in to add your appliances and start tracking how much power they consume.',
-            );
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading devices: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
-          }
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
 
-          final devices = snapshot.data!['devices'] as List<dynamic>;
-          final rate = snapshot.data!['rate'] as num;
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('My Devices', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 20),
-
-                if (devices.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child: Text("No devices added yet. Click 'Add device' on the Home tab!", style: TextStyle(color: AppColors.textHintColor)),
-                    ),
-                  )
-                else
-                  ...devices.map((device) {
-                    // The Math: (Watts / 1000) * hours * 30 days
-                    final double dailyKwh = (device['watts'] / 1000) * device['hours_per_day'] * device['quantity'];
-                    final double monthlyKwh = dailyKwh * 30;
-                    final double monthlyCost = monthlyKwh * rate;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 15),
-                      child: _buildDeviceCard(
-                        name: device['name'],
-                        category: device['category'],
-                        specs: '${device['watts']}W · ${device['hours_per_day']} hrs/day',
-                        icon: Icons.electrical_services,
-                        iconColor: AppColors.appYellow,
-                        dailyKwh: dailyKwh.toStringAsFixed(2),
-                        monthlyKwh: monthlyKwh.toStringAsFixed(1),
-                        estCost: '₱${monthlyCost.toStringAsFixed(0)}',
-                      ),
-                    );
-                  }),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildDeviceCard({
-    required String name, required String category, required String specs,
-    required IconData icon, required Color iconColor,
-    required String dailyKwh, required String monthlyKwh, required String estCost,
-  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.inputBackground.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        children: [
-          Row(
+      decoration: AppTheme.globalBackground(context),
+      child: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: 120,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: iconColor, size: 24),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text(specs, style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)),
-                  ],
+              Text(
+                'My Planning Space',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
-                child: Text(category, style: TextStyle(color: iconColor, fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(
+                'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
+                style: TextStyle(color: hintColor, fontSize: 13, height: 1.4),
               ),
+              const SizedBox(height: 20),
+
+              if (devices.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: Text(
+                      "No items added yet. Click 'Add device' on the Home tab!",
+                      style: TextStyle(color: hintColor),
+                    ),
+                  ),
+                )
+              else
+                ...devices.map((device) {
+                  // Math Engine logic based on Adjusted Hours
+                  final double dailyKwh =
+                      (device.presetWattage / 1000) * device.adjustedHours;
+                  final double monthlyKwh = dailyKwh * 30;
+                  final double monthlyCost = monthlyKwh * _activeRate;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 15),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: surfaceColor.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.appYellow.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.electrical_services,
+                                  color: AppColors.appYellow,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      device.customName,
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${device.presetWattage}W · ${device.adjustedHours.toStringAsFixed(1)} hrs/day',
+                                      style: TextStyle(
+                                        color: hintColor,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // The Lock Toggle!
+                              IconButton(
+                                icon: Icon(
+                                  device.isLocked
+                                      ? Icons.lock
+                                      : Icons.lock_open,
+                                  color: device.isLocked
+                                      ? Colors.green
+                                      : AppColors.appYellow,
+                                  size: 28,
+                                ),
+                                onPressed: () {
+                                  // Instantly update SQLite and the UI state
+                                  ref
+                                      .read(inventoryProvider.notifier)
+                                      .toggleLock(device.id!, device.isLocked);
+                                },
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Divider(
+                              color: hintColor.withValues(alpha: 0.1),
+                              height: 1,
+                            ),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildMetricColumn(
+                                'Daily',
+                                '${dailyKwh.toStringAsFixed(2)} kWh',
+                                textColor,
+                                hintColor,
+                              ),
+                              _buildMetricColumn(
+                                'Monthly',
+                                '${monthlyKwh.toStringAsFixed(1)} kWh',
+                                textColor,
+                                hintColor,
+                              ),
+                              _buildMetricColumn(
+                                'Est. cost',
+                                '₱${monthlyCost.toStringAsFixed(0)}',
+                                AppColors.appYellow,
+                                hintColor,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
             ],
           ),
-          const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(color: Colors.white10, height: 1)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildMetricColumn('Daily', '$dailyKwh kWh', Colors.white),
-              _buildMetricColumn('Monthly', '$monthlyKwh kWh', Colors.white),
-              _buildMetricColumn('Est. cost', estCost, AppColors.appYellow),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildMetricColumn(String label, String value, Color valueColor) {
+  Widget _buildMetricColumn(
+    String label,
+    String value,
+    Color valueColor,
+    Color hintColor,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textHintColor, fontSize: 11)),
+        Text(label, style: TextStyle(color: hintColor, fontSize: 11)),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: valueColor, fontSize: 14, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }

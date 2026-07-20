@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 import 'sign_in_screen.dart';
@@ -9,9 +10,12 @@ class OnboardingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+
     return Container(
-      // Uses the exact same gradient background for a seamless transition
-      decoration: AppColors.globalGradient,
+      // Dynamic Theme Background applied here
+      decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
@@ -21,14 +25,14 @@ class OnboardingScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Branding Header
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.bolt, color: AppColors.appYellow, size: 32),
-                    SizedBox(width: 8),
+                    const Icon(Icons.bolt, color: AppColors.appYellow, size: 32),
+                    const SizedBox(width: 8),
                     Text(
                       'Kislap',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: textColor,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,
@@ -44,7 +48,7 @@ class OnboardingScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(40),
                     decoration: BoxDecoration(
-                      color: AppColors.appYellow.withOpacity(0.1),
+                      color: AppColors.appYellow.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -58,20 +62,20 @@ class OnboardingScreen extends StatelessWidget {
                 const Spacer(),
 
                 // Value Proposition Text
-                const Text(
+                Text(
                   'Take control of\nyour electricity bill.',
                   style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: textColor,
                     height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 15),
-                const Text(
-                  'Track your appliances, estimate your monthly costs, and switch between mainland and island rates instantly.',
+                Text(
+                  'Track your appliances, set a monthly target budget, and let automated reduction optimization balance your schedules.',
                   style: TextStyle(
-                    color: AppColors.textHintColor,
+                    color: hintColor,
                     fontSize: 16,
                     height: 1.5,
                   ),
@@ -112,13 +116,13 @@ class OnboardingScreen extends StatelessWidget {
                       );
                     },
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white24, width: 1.5),
+                      side: BorderSide(color: hintColor.withValues(alpha: 0.3), width: 1.5),
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
+                    child: Text(
                       'I already have an account', 
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                      style: TextStyle(fontSize: 16, color: textColor),
                     ),
                   ),
                 ),
@@ -132,15 +136,13 @@ class OnboardingScreen extends StatelessWidget {
                         MaterialPageRoute(builder: (_) => const DashboardShell()),
                       );
                     },
-                    child: const Text(
+                    child: Text(
                       'Continue as Guest',
-                      style: TextStyle(color: AppColors.textHintColor, fontSize: 14),
+                      style: TextStyle(color: hintColor, fontSize: 14),
                     ),
                   ),
                 ),
               ],
-
-              
             ),
           ),
         ),

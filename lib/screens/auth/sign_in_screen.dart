@@ -6,6 +6,7 @@ import '../../widgets/social_button.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 import '../admin/admin_dashboard_screen.dart'; // <-- Import the admin screen
+import '../../services/sync_service.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -38,7 +39,6 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Authenticate the user
       final authResponse = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
@@ -47,20 +47,20 @@ class _SignInScreenState extends State<SignInScreen> {
       final user = authResponse.user;
       
       if (user != null) {
-        // 2. Safely fetch the profile data using maybeSingle() instead of single()
+        // 1. Merge any offline items the user just created into their cloud account
+        await SyncService.mergeOfflineDataToCloud(user.id);
+
+        // 2. Safely fetch the profile data for role routing
         final profileData = await Supabase.instance.client
             .from('profiles')
             .select('role_id')
             .eq('id', user.id)
             .maybeSingle();
 
-        // 3. Extract the role, defaulting to 1 (standard user) if the profile row is missing
         final int roleId = profileData?['role_id'] as int? ?? 1;
 
         if (mounted) {
-          // 4. Route based on the role
           if (roleId == 2) {
-            // Import AdminDashboardScreen at the top if you haven't already
             Navigator.pushAndRemoveUntil(
               context, 
               MaterialPageRoute(builder: (_) => const AdminDashboardScreen()), 

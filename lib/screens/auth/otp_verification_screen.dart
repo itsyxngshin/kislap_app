@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/custom_text_field.dart';
+import '../../services/sync_service.dart';
 import '../dashboard/dashboard_shell.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -36,14 +36,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Send the code back to Supabase to verify
-      await Supabase.instance.client.auth.verifyOTP(
+      // 1. Verify OTP
+      final authResponse = await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.signup,
         email: widget.email,
         token: code,
       );
 
-      // If successful, they are officially logged in! Send them to the dashboard.
+      // 2. Merge offline data if verification was successful
+      final user = authResponse.user;
+      if (user != null) {
+        await SyncService.mergeOfflineDataToCloud(user.id);
+      }
+
+      // 3. Send them to the dashboard
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
