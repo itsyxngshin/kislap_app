@@ -155,7 +155,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   // Instantly update SQLite and the UI state
                                   ref
                                       .read(inventoryProvider.notifier)
-                                      .toggleLock(device.id!, device.isLocked);
+                                      .toggleLock(device.id, device.isLocked);
                                 },
                               ),
                             ],

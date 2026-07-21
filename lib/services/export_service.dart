@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../providers/inventory_provider.dart';
 import '../models/appliance_item.dart';
 
 class ExportService {
   static Future<void> exportScheduleToExcel({
-    required List<ApplianceItem> inventory,
+    required List<Appliance> inventory,
+
     required double tariffRate,
     required double targetBudget,
   }) async {
@@ -38,7 +40,7 @@ class ExportService {
 
       sheetObject.appendRow([
         TextCellValue(item.customName),
-        TextCellValue(item.category),
+        TextCellValue('Standard'),
         TextCellValue(item.isLocked ? 'Locked (Essential)' : 'Flexible'),
         DoubleCellValue(item.presetWattage),
         DoubleCellValue(item.userAssignedHours),
@@ -48,14 +50,14 @@ class ExportService {
       ]);
     }
 
-    sheetObject.appendRow([TextCellValue('')]); 
+    sheetObject.appendRow([TextCellValue('')]);
     sheetObject.appendRow([TextCellValue('--- SUMMARY ---')]);
-    
+
     sheetObject.appendRow([
       TextCellValue('Target Budget:'),
       DoubleCellValue(targetBudget),
     ]);
-    
+
     sheetObject.appendRow([
       TextCellValue('Estimated Total:'),
       DoubleCellValue(double.parse(totalMonthlyCost.toStringAsFixed(2))),
@@ -63,20 +65,21 @@ class ExportService {
 
     sheetObject.appendRow([
       TextCellValue('Status:'),
-      TextCellValue(totalMonthlyCost <= targetBudget ? 'On Track' : 'Budget Breached'),
+      TextCellValue(
+        totalMonthlyCost <= targetBudget ? 'On Track' : 'Budget Breached',
+      ),
     ]);
 
     var fileBytes = excel.save();
     final directory = await getTemporaryDirectory();
     final String filePath = '${directory.path}/Kislap_Optimization_Plan.xlsx';
-    
+
     File(filePath)
       ..createSync(recursive: true)
       ..writeAsBytesSync(fileBytes!);
 
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: 'Here is my optimized Kislap electricity plan!',
-    );
+    await Share.shareXFiles([
+      XFile(filePath),
+    ], text: 'Here is my optimized Kislap electricity plan!');
   }
 }

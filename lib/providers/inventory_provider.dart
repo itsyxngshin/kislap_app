@@ -1,108 +1,157 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/appliance_item.dart';
+import 'package:uuid/uuid.dart';
 import '../services/database_helper.dart';
-import '../services/optimization_engine.dart';
 
-class InventoryNotifier extends Notifier<List<ApplianceItem>> {
-  final _dbHelper = DatabaseHelper.instance;
+class Appliance {
+  final String id;
+  final int presetId;
+  final String customName;
+  final double presetWattage;
+  final double userAssignedHours;
+  final double adjustedHours;
+  final bool isLocked;
 
+  Appliance({
+    required this.id,
+    required this.presetId,
+    required this.customName,
+    required this.presetWattage,
+    required this.userAssignedHours,
+    required this.adjustedHours,
+    required this.isLocked,
+  });
+
+  Appliance copyWith({double? adjustedHours, bool? isLocked}) {
+    return Appliance(
+      id: id,
+      presetId: presetId,
+      customName: customName,
+      presetWattage: presetWattage,
+      userAssignedHours: userAssignedHours,
+      adjustedHours: adjustedHours ?? this.adjustedHours,
+      isLocked: isLocked ?? this.isLocked,
+    );
+  }
+}
+
+// UPGRADED: Using the modern Riverpod 2.x Notifier class
+class InventoryNotifier extends Notifier<List<Appliance>> {
   @override
-  List<ApplianceItem> build() {
-    loadInventory();
+  List<Appliance> build() {
+    // The build method replaces the old constructor initialization
+    Future.microtask(() => _loadInventory());
     return [];
   }
 
-  // Fetch items from local SQLite executing a JOIN to grab preset details
-  Future<void> loadInventory() async {
-    final db = await _dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT 
-        u.id, u.preset_id, u.custom_name, u.user_assigned_hours, u.adjusted_hours, u.is_locked,
-        p.category, p.preset_wattage
-      FROM user_inventory u
-      JOIN appliance_presets p ON u.preset_id = p.id
-    ''');
-
-    state = maps.map((map) => ApplianceItem.fromMap(map)).toList();
+  Future<void> _loadInventory() async {
+    // We start with the current empty state and run the optimization math
+    await _optimizeAndSave(state);
   }
 
-  // Add an item instance
   Future<void> addAppliance({
     required int presetId,
     required String customName,
     required double defaultHours,
+    required double wattage,
   }) async {
-    final db = await _dbHelper.database;
-    
-    await db.insert('user_inventory', {
-      'preset_id': presetId,
-      'custom_name': customName,
-      'user_assigned_hours': defaultHours,
-      'adjusted_hours': defaultHours, 
-      'is_locked': 0,
-    });
-
-    await loadInventory(); 
-    await _optimizeAndSave();
-  }
-
-  // Delete an explicit item entry
-  Future<void> removeAppliance(int id) async {
-    final db = await _dbHelper.database;
-    await db.delete('user_inventory', where: 'id = ?', whereArgs: [id]);
-    
-    await loadInventory();
-    await _optimizeAndSave();
-  }
-
-  // Toggle lock status
-  Future<void> toggleLock(int id, bool currentLockStatus) async {
-    final db = await _dbHelper.database;
-    final int newLockValue = currentLockStatus ? 0 : 1;
-
-    await db.update(
-      'user_inventory',
-      {'is_locked': newLockValue},
-      where: 'id = ?',
-      whereArgs: [id],
+    final newItem = Appliance(
+      id: const Uuid().v4(),
+      presetId: presetId,
+      customName: customName,
+      presetWattage: wattage,
+      userAssignedHours: defaultHours,
+      adjustedHours: defaultHours,
+      isLocked: false,
     );
 
-    state = [
-      for (final item in state)
-        if (item.id == id) item.copyWith(isLocked: !currentLockStatus) else item
-    ];
-
-    await _optimizeAndSave();
+    final newState = [...state, newItem];
+    await _optimizeAndSave(newState);
   }
 
-  // Run optimization engine and save results
-  Future<void> _optimizeAndSave() async {
-    final db = await _dbHelper.database;
-    
+  Future<void> removeAppliance(String id) async {
+    final newState = state.where((item) => item.id != id).toList();
+    await _optimizeAndSave(newState);
+  }
+
+  Future<void> toggleLock(String id, bool currentLockState) async {
+    final newState = state.map((item) {
+      if (item.id == id) {
+        return item.copyWith(isLocked: !currentLockState);
+      }
+      return item;
+    }).toList();
+    await _optimizeAndSave(newState);
+  }
+
+  // --- THE PROPORTIONAL REDUCTION ALGORITHM ---
+  Future<void> _optimizeAndSave(List<Appliance> currentState) async {
+    final db = await DatabaseHelper.instance.database;
     final settings = await db.query('user_settings', limit: 1);
-    if (settings.isEmpty) return;
-    
-    final double budget = (settings.first['monthly_budget'] as num).toDouble();
-    final double rate = (settings.first['tariff_rate'] as num).toDouble();
 
-    final optimizedInventory = OptimizationEngine.runProportionalReduction(
-      inventory: state,
-      monthlyBudget: budget,
-      tariffRate: rate,
-    );
+    double budget = 0.0;
+    double tariff = 11.08;
 
-    for (var item in optimizedInventory) {
-      await db.update(
-        'user_inventory',
-        {'adjusted_hours': item.adjustedHours},
-        where: 'id = ?',
-        whereArgs: [item.id],
-      );
+    if (settings.isNotEmpty) {
+      budget = (settings.first['monthly_budget'] as num).toDouble();
+      tariff = (settings.first['tariff_rate'] as num).toDouble();
     }
 
-    state = optimizedInventory;
+    if (budget <= 0) {
+      // Safely assign state without the linter yelling at you
+      state = currentState;
+      return;
+    }
+
+    // 1. Calculate Allowances
+    final double maxMonthlyKwh = budget / tariff;
+    final double maxDailyKwh = maxMonthlyKwh / 30;
+
+    // 2. Calculate Locked Consumption
+    double lockedDailyKwh = 0.0;
+    for (var item in currentState) {
+      if (item.isLocked) {
+        lockedDailyKwh += (item.presetWattage / 1000) * item.userAssignedHours;
+      }
+    }
+
+    // 3. Calculate Remaining Budget for Unlocked Devices
+    double remainingDailyKwh = maxDailyKwh - lockedDailyKwh;
+    if (remainingDailyKwh < 0) remainingDailyKwh = 0;
+
+    // 4. Calculate Intended Unlocked Consumption
+    double intendedUnlockedKwh = 0.0;
+    for (var item in currentState) {
+      if (!item.isLocked) {
+        intendedUnlockedKwh +=
+            (item.presetWattage / 1000) * item.userAssignedHours;
+      }
+    }
+
+    // 5. Determine Scaling Factor
+    double scaleFactor = 1.0;
+    if (intendedUnlockedKwh > remainingDailyKwh && intendedUnlockedKwh > 0) {
+      scaleFactor = remainingDailyKwh / intendedUnlockedKwh;
+    }
+
+    // 6. Apply Scale Factor to Unlocked Devices
+    final optimizedState = currentState.map((item) {
+      if (item.isLocked) {
+        return item.copyWith(adjustedHours: item.userAssignedHours);
+      } else {
+        return item.copyWith(
+          adjustedHours: item.userAssignedHours * scaleFactor,
+        );
+      }
+    }).toList();
+
+    state = optimizedState;
+    // Note: Local SQLite sync to 'user_inventory' table can be added here
   }
 }
 
-// Global NotifierProvider Node
-final inventoryProvider = NotifierProvider<InventoryNotifier, List<ApplianceItem>>(InventoryNotifier.new);
+// UPGRADED: Modern Provider Syntax
+final inventoryProvider = NotifierProvider<InventoryNotifier, List<Appliance>>(
+  () {
+    return InventoryNotifier();
+  },
+);

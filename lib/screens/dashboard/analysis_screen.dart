@@ -1,173 +1,287 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
+import '../../services/database_helper.dart';
 
-class AnalysisScreen extends ConsumerWidget {
+class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
 
-  // Define a color palette for our categories
-  final Map<String, Color> _categoryColors = const {
-    'Cooling': AppColors.appYellow,
-    'Kitchen': Colors.greenAccent,
-    'Entertainment': AppColors.adminRed,
-    'Lighting': Colors.cyanAccent,
-    'Other': Colors.grey,
-  };
+  @override
+  ConsumerState<AnalysisScreen> createState() => _AnalysisScreenState();
+}
+
+class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
+  double _activeRate = 11.08;
+  double _targetBudget = 0.0;
+  bool _isLoading = true;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Instantly pull the active inventory from Riverpod
-    final devices = ref.watch(inventoryProvider);
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
 
-    // 2. Compute the breakdown locally
-    double totalMonthlyKwh = 0.0;
-    Map<String, double> categoryBreakdown = {};
-
-    for (var device in devices) {
-      final double monthlyKwh =
-          (device.presetWattage / 1000) * device.adjustedHours * 30;
-      final String category = device.category;
-
-      totalMonthlyKwh += monthlyKwh;
-      categoryBreakdown[category] =
-          (categoryBreakdown[category] ?? 0) + monthlyKwh;
+  Future<void> _loadSettings() async {
+    final db = await DatabaseHelper.instance.database;
+    final settings = await db.query('user_settings', limit: 1);
+    if (settings.isNotEmpty && mounted) {
+      setState(() {
+        _activeRate = (settings.first['tariff_rate'] as num).toDouble();
+        _targetBudget = (settings.first['monthly_budget'] as num).toDouble();
+        _isLoading = false;
+      });
     }
+  }
 
+  @override
+  Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withValues(alpha: 0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
+    if (_isLoading) {
+      return Container(
+        decoration: AppTheme.globalBackground(context),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.appYellow),
+        ),
+      );
+    }
+
+    final devices = ref.watch(inventoryProvider);
+
+    // Calculate Original vs Optimized Data
+    double originalDailyKwh = 0;
+    double optimizedDailyKwh = 0;
+
+    for (var device in devices) {
+      final double kw = device.presetWattage / 1000;
+      originalDailyKwh += kw * device.userAssignedHours;
+      optimizedDailyKwh += kw * device.adjustedHours;
+    }
+
+    final double originalMonthlyCost = originalDailyKwh * _activeRate * 30;
+    final double optimizedMonthlyCost = optimizedDailyKwh * _activeRate * 30;
+
+    // Chart scaling logic
+    final double maxCost = originalMonthlyCost > _targetBudget
+        ? originalMonthlyCost
+        : _targetBudget;
+
     return Container(
       decoration: AppTheme.globalBackground(context),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 20,
-            bottom: 120,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: textColor),
+            onPressed: () => Navigator.pop(context),
           ),
+          title: Text(
+            'Data Analysis',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Analysis',
+                'IMPACT SUMMARY',
                 style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
-              // Summary Card
+              // Big Number Comparison
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: surfaceColor.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      'Total consumption, this month',
-                      style: TextStyle(color: hintColor, fontSize: 13),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${totalMonthlyKwh.toStringAsFixed(1)} kWh',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Original Cost',
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₱${originalMonthlyCost.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: AppColors.adminRed,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Live Estimate',
-                        style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      height: 40,
+                      width: 1,
+                      color: hintColor.withValues(alpha: 0.3),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Optimized Cost',
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₱${optimizedMonthlyCost.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
 
-              // Dynamic Pie Chart
-              if (totalMonthlyKwh > 0)
-                Container(
-                  padding: const EdgeInsets.all(20),
+              Text(
+                'FINANCIAL TRAJECTORY CHART',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Visual Bar Chart
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: surfaceColor.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBarRow(
+                      'Target Budget',
+                      _targetBudget,
+                      maxCost,
+                      AppColors.appYellow,
+                      textColor,
+                      hintColor,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildBarRow(
+                      'Unregulated Usage',
+                      originalMonthlyCost,
+                      maxCost,
+                      AppColors.adminRed,
+                      textColor,
+                      hintColor,
+                    ),
+                    const SizedBox(height: 20),
+                    _buildBarRow(
+                      'System Optimized',
+                      optimizedMonthlyCost,
+                      maxCost,
+                      Colors.greenAccent,
+                      textColor,
+                      hintColor,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              Text(
+                'DEVICE LEVEL ADJUSTMENTS',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              ...devices.map((device) {
+                final bool isReduced =
+                    device.adjustedHours < device.userAssignedHours;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(20),
+                    color: surfaceColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: device.isLocked
+                          ? AppColors.appYellow.withValues(alpha: 0.3)
+                          : Colors.transparent,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      SizedBox(
-                        height: 120,
-                        width: 120,
-                        child: PieChart(
-                          PieChartData(
-                            sectionsSpace: 4,
-                            centerSpaceRadius: 30,
-                            sections: categoryBreakdown.entries.map((entry) {
-                              final double percentage =
-                                  (entry.value / totalMonthlyKwh) * 100;
-                              final color =
-                                  _categoryColors[entry.key] ?? Colors.grey;
-                              return PieChartSectionData(
-                                color: color,
-                                value: percentage,
-                                title: '',
-                                radius: 25,
-                              );
-                            }).toList(),
-                          ),
-                        ),
+                      Icon(
+                        device.isLocked ? Icons.lock : Icons.auto_graph,
+                        color: device.isLocked
+                            ? AppColors.appYellow
+                            : (isReduced ? Colors.orange : Colors.greenAccent),
+                        size: 20,
                       ),
-                      const SizedBox(width: 30),
+                      const SizedBox(width: 15),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: categoryBreakdown.entries.map((entry) {
-                            final double percentage =
-                                (entry.value / totalMonthlyKwh) * 100;
-                            final color =
-                                _categoryColors[entry.key] ?? Colors.grey;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _buildLegendItem(
-                                color,
-                                entry.key,
-                                '${percentage.toStringAsFixed(1)}%',
-                                textColor,
-                                hintColor,
+                          children: [
+                            Text(
+                              device.customName,
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
                               ),
-                            );
-                          }).toList(),
+                            ),
+                            Text(
+                              '${device.userAssignedHours}h requested',
+                              style: TextStyle(color: hintColor, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${device.adjustedHours.toStringAsFixed(1)}h',
+                        style: TextStyle(
+                          color: device.isLocked
+                              ? AppColors.appYellow
+                              : (isReduced
+                                    ? Colors.orange
+                                    : Colors.greenAccent),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
-                ),
+                );
+              }),
             ],
           ),
         ),
@@ -175,34 +289,67 @@ class AnalysisScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLegendItem(
-    Color color,
+  Widget _buildBarRow(
     String label,
-    String percentage,
+    double value,
+    double maxScale,
+    Color barColor,
     Color textColor,
     Color hintColor,
   ) {
-    return Row(
+    // Prevent division by zero
+    double percentage = maxScale > 0 ? (value / maxScale) : 0;
+    if (percentage > 1.0) percentage = 1.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '₱${value.toStringAsFixed(0)}',
+              style: TextStyle(color: hintColor, fontSize: 12),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(label, style: TextStyle(color: hintColor, fontSize: 13)),
-        ),
-        Text(
-          percentage,
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
+        const SizedBox(height: 8),
+        Stack(
+          children: [
+            Container(
+              height: 12,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            FractionallySizedBox(
+              widthFactor: percentage,
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: barColor,
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: barColor.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
