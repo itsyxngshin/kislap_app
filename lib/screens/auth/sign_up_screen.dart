@@ -19,9 +19,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
+
   final TextEditingController _budgetController = TextEditingController();
-  final TextEditingController _tariffController = TextEditingController(text: '11.08'); 
+  final TextEditingController _tariffController = TextEditingController(text: '11.08');
   String _householdSize = 'Small';
 
   @override
@@ -37,8 +37,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // Validates the current step before allowing the user to proceed
   bool _validateCurrentStep() {
     if (_currentStep == 0) {
-      if (_nameController.text.trim().isEmpty || 
-          _emailController.text.trim().isEmpty || 
+      if (_nameController.text.trim().isEmpty ||
+          _emailController.text.trim().isEmpty ||
           _passwordController.text.trim().isEmpty) {
         _showError('Please fill out all account details.');
         return false;
@@ -82,7 +82,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'monthly_budget': budget,
           'tariff_rate': tariff,
           'household_size': _householdSize,
-        }, 
+        },
       );
 
       // 2. Save the baseline to the local SQLite engine
@@ -158,7 +158,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Navigator.pop(context);
               }
             },
-            
+
             // Custom Navigation Buttons
             controlsBuilder: (context, details) {
               final isLastStep = _currentStep == 2;
@@ -175,7 +175,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: _isLoading 
+                        child: _isLoading
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : Text(isLastStep ? 'Complete Registration' : 'Continue', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
@@ -191,71 +191,113 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               );
             },
-            
+
             // The 3 Registration Steps
-            steps: [
-              Step(
-                title: const Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Your login credentials', style: TextStyle(color: AppColors.textHintColor)),
-                isActive: _currentStep >= 0,
-                state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-                content: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
-                    const SizedBox(height: 15),
-                    CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
-                    const SizedBox(height: 15),
-                    CustomTextField(controller: _passwordController, hint: 'Create a password', icon: Icons.lock_outline, isPassword: true),
-                  ],
-                ),
-              ),
-              Step(
-                title: const Text('Financial Baseline', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Optimization limits', style: TextStyle(color: AppColors.textHintColor)),
-                isActive: _currentStep >= 1,
-                state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-                content: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    CustomTextField(
-                      controller: _budgetController,
-                      hint: 'Target Monthly Budget (₱)',
-                      icon: Icons.account_balance_wallet_outlined,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    const SizedBox(height: 15),
-                    CustomTextField(
-                      controller: _tariffController,
-                      hint: 'Local Tariff Rate (₱/kWh)',
-                      icon: Icons.bolt,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                  ],
-                ),
-              ),
-              Step(
-                title: const Text('Household Class', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: const Text('Sets the kVA scale', style: TextStyle(color: AppColors.textHintColor)),
-                isActive: _currentStep >= 2,
-                content: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.inputBackground, borderRadius: BorderRadius.circular(16)),
-                      child: Column(
-                        children: [
-                          _buildRadioOption('Small (0 - 5 kVA)'),
-                          _buildRadioOption('Medium (6 - 15 kVA)'),
-                          _buildRadioOption('Large (16 - 25 kVA)'),
+            // ... inside your Stepper widget ...
+                        steps: [
+                          Step(
+                            title: const Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Your login credentials', style: TextStyle(color: AppColors.textHintColor)),
+                            isActive: _currentStep >= 0,
+                            state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+                            content: Column(
+                              children: [
+                                const SizedBox(height: 10),
+                                CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
+                                const SizedBox(height: 15),
+                                CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
+                                const SizedBox(height: 15),
+                                CustomTextField(controller: _passwordController, hint: 'Create a password', icon: Icons.lock_outline, isPassword: true),
+                              ],
+                            ),
+                          ),
+                          Step(
+                            title: const Text('Financial Baseline', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Optimization limits', style: TextStyle(color: AppColors.textHintColor)),
+                            isActive: _currentStep >= 1,
+                            state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+                            content: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 10),
+                                // GUIDED UI: Budget
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.2)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Target Budget', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(height: 4),
+                                      const Text('How much are you willing to spend on electricity this month?', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                                      const SizedBox(height: 12),
+                                      CustomTextField(
+                                        controller: _budgetController,
+                                        hint: 'e.g. 1500',
+                                        icon: Icons.account_balance_wallet_outlined,
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 15),
+
+                                // GUIDED UI: Tariff Rate
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.2)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Utility Rate', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
+                                      const SizedBox(height: 4),
+                                      const Text('Check your latest electric bill (e.g., ALECO or CASURECO) for the exact ₱/kWh rate.', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                                      const SizedBox(height: 12),
+                                      CustomTextField(
+                                        controller: _tariffController,
+                                        hint: 'e.g. 11.08',
+                                        icon: Icons.bolt,
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Step(
+                            title: const Text('Household Class', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Sets the kVA scale', style: TextStyle(color: AppColors.textHintColor)),
+                            isActive: _currentStep >= 2,
+                            content: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 10),
+                                const Text('Select your setup size to enforce safe power distribution limits.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: AppColors.inputBackground, borderRadius: BorderRadius.circular(16)),
+                                  child: Column(
+                                    children: [
+                                      _buildRadioOption('Small (0 - 5 kVA)'),
+                                      _buildRadioOption('Medium (6 - 15 kVA)'),
+                                      _buildRadioOption('Large (16 - 25 kVA)'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -265,7 +307,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildRadioOption(String title) {
     String value = title.split(' ').first; // Extracts 'Small', 'Medium', or 'Large'
     bool isSelected = _householdSize == value;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _householdSize = value),
       behavior: HitTestBehavior.opaque,

@@ -14,35 +14,19 @@ class AddDeviceScreen extends ConsumerStatefulWidget {
 
 class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
   final TextEditingController _customNameController = TextEditingController();
-  final TextEditingController _hoursController = TextEditingController(
-    text: '0',
-  );
+  final TextEditingController _hoursController = TextEditingController();
 
-  List<Map<String, dynamic>> _presets = [];
   Map<String, dynamic>? _selectedPreset;
-  bool _isLoadingPresets = true;
   bool _isSaving = false;
+  late Future<List<Map<String, dynamic>>> _presetsFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadLocalPresets();
-  }
-
-  // Load master catalog options directly from local SQLite storage
-  Future<void> _loadLocalPresets() async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-      final presets = await db.query('appliance_presets');
-      if (mounted && presets.isNotEmpty) {
-        setState(() {
-          _presets = presets;
-          _selectedPreset = presets.first;
-          _customNameController.text = _selectedPreset!['appliance_name'];
-        });
-      }
-    } catch (_) {}
-    setState(() => _isLoadingPresets = false);
+    // Fetch presets from the local SQLite catalog immediately on load
+    _presetsFuture = DatabaseHelper.instance.database.then((db) {
+      return db.query('appliance_presets', orderBy: 'category, appliance_name');
+    });
   }
 
   @override
@@ -52,50 +36,39 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     super.dispose();
   }
 
-  Future<void> _saveUniqueDevice() async {
-    if (_customNameController.text.isEmpty ||
-        _hoursController.text.isEmpty ||
-        _selectedPreset == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please verify inputs')));
+  void _saveDevice() async {
+    if (_selectedPreset == null || _customNameController.text.trim().isEmpty || _hoursController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please complete all fields.'), backgroundColor: AppColors.adminRed),
+      );
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final double hours = double.parse(_hoursController.text.trim());
+      final double hours = double.parse(_hoursController.text);
 
-      // Save directly via the Riverpod state notifier to seamlessly trigger UI refreshes
-      await ref
-          .read(inventoryProvider.notifier)
-          .addAppliance(
-            presetId: _selectedPreset!['id'] as int,
-            customName: _customNameController.text.trim(),
-            defaultHours: hours,
-          );
+      // Push the new device into the Riverpod state (which handles the math and SQLite insert)
+      await ref.read(inventoryProvider.notifier).addAppliance(
+        presetId: _selectedPreset!['id'],
+        customName: _customNameController.text.trim(),
+        defaultHours: hours,
+      );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unique device item added!'),
-            backgroundColor: Colors.green,
-          ),
-        );
         Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Device added and schedule optimized!'), backgroundColor: Colors.green),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Save failed: $e'),
-            backgroundColor: AppColors.adminRed,
-          ),
+          SnackBar(content: Text('Error adding device: $e'), backgroundColor: AppColors.adminRed),
         );
+        setState(() => _isSaving = false);
       }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -105,14 +78,6 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     final hintColor = textColor.withValues(alpha: 0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
-    if (_isLoadingPresets) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.appYellow),
-        ),
-      );
-    }
-
     return Container(
       decoration: AppTheme.globalBackground(context),
       child: Scaffold(
@@ -120,126 +85,134 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(
-            'Add Item Instance',
-            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-          ),
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: textColor),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: IconButton(icon: Icon(Icons.close, color: textColor), onPressed: () => Navigator.pop(context)),
+          title: Text('Add Appliance', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Select Catalog Base',
-                style: TextStyle(color: hintColor, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<Map<String, dynamic>>(
-                value: _selectedPreset,
-                dropdownColor: surfaceColor,
-                icon: Icon(Icons.keyboard_arrow_down, color: hintColor),
-                style: TextStyle(color: textColor, fontSize: 14),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: surfaceColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                items: _presets.map((preset) {
-                  return DropdownMenuItem(
-                    value: preset,
-                    child: Text(
-                      '${preset['appliance_name']} (${preset['preset_wattage']}W)',
+        body: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _presetsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(child: Text('No appliance presets found.\nPlease sync with the cloud.', style: TextStyle(color: hintColor)));
+            }
+
+            final presets = snapshot.data!;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Premium Glassmorphism Card
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: surfaceColor.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.2)),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))
+                      ],
                     ),
-                  );
-                }).toList(),
-                onChanged: (Map<String, dynamic>? newValue) {
-                  if (newValue != null) {
-                    setState(() {
-                      _selectedPreset = newValue;
-                      _customNameController.text = newValue['appliance_name'];
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('APPLIANCE TYPE', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        const SizedBox(height: 10),
 
-              Text(
-                'Custom Display Tag Name',
-                style: TextStyle(color: hintColor, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _customNameController,
-                style: TextStyle(color: textColor),
-                decoration: InputDecoration(
-                  hintText: 'e.g., Living Room Fan, Kitchen Microwave',
-                  hintStyle: TextStyle(color: hintColor.withValues(alpha: 0.5)),
-                  filled: true,
-                  fillColor: surfaceColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              Text(
-                'Baseline Daily Use Hours',
-                style: TextStyle(color: hintColor, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _hoursController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                style: TextStyle(color: textColor),
-                decoration: InputDecoration(
-                  suffixText: 'hrs/day',
-                  suffixStyle: TextStyle(color: hintColor),
-                  filled: true,
-                  fillColor: surfaceColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : _saveUniqueDevice,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.black87,
-                            strokeWidth: 2,
+                        // The Fixed Dropdown
+                        DropdownButtonFormField<Map<String, dynamic>>(
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: surfaceColor.withValues(alpha: 0.8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            prefixIcon: const Icon(Icons.category_outlined, color: AppColors.appYellow),
                           ),
-                        )
-                      : const Text(
-                          'Add to Planning space',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                          dropdownColor: surfaceColor,
+                          icon: Icon(Icons.keyboard_arrow_down, color: hintColor),
+                          hint: Text('Select from catalog...', style: TextStyle(color: hintColor)),
+                          value: _selectedPreset,
+                          isExpanded: true,
+                          items: presets.map((preset) {
+                            return DropdownMenuItem<Map<String, dynamic>>(
+                              value: preset,
+                              child: Text('${preset['appliance_name']} (${preset['preset_wattage']}W)', style: TextStyle(color: textColor, fontSize: 15)),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedPreset = value;
+                              // Auto-fill the custom name to speed up data entry
+                              if (_customNameController.text.isEmpty && value != null) {
+                                _customNameController.text = value['appliance_name'];
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 25),
+
+                        Text('CUSTOM IDENTIFIER', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _customNameController,
+                          style: TextStyle(color: textColor, fontSize: 16),
+                          decoration: InputDecoration(
+                            hintText: 'e.g., Master Bedroom AC',
+                            hintStyle: TextStyle(color: hintColor),
+                            filled: true,
+                            fillColor: surfaceColor.withValues(alpha: 0.8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            prefixIcon: Icon(Icons.label_outline, color: hintColor),
                           ),
                         ),
-                ),
+                        const SizedBox(height: 25),
+
+                        Text('BASELINE USAGE', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _hoursController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            hintText: 'Hours per day',
+                            hintStyle: TextStyle(color: hintColor, fontWeight: FontWeight.normal),
+                            filled: true,
+                            fillColor: surfaceColor.withValues(alpha: 0.8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            prefixIcon: const Icon(Icons.schedule, color: Colors.greenAccent),
+                            suffixText: 'hrs',
+                            suffixStyle: TextStyle(color: hintColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+
+                  // Vibrant Orange Primary Action
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _isSaving ? null : _saveDevice,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.orange.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 5,
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Add to Inventory', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

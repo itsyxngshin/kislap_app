@@ -29,7 +29,7 @@ class DatabaseHelper {
     if (Platform.isWindows || Platform.isLinux) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
-      
+
       // On desktop, we can just use the local project directory
       final path = join(await getDatabasesPath(), filePath);
       return await openDatabase(path, version: 2, onCreate: _createDB);
@@ -82,6 +82,17 @@ class DatabaseHelper {
             billing_month TEXT NOT NULL, -- Format: YYYY-MM (e.g., '2026-07')
             tariff_rate REAL NOT NULL, -- The user-inputted ₱/kWh for this specific month
             UNIQUE(billing_month)
+          )
+        ''');
+
+    await db.execute('''
+          CREATE TABLE recording_periods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_month TEXT NOT NULL UNIQUE,
+            period_name TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            billing_rate REAL NOT NULL
           )
         ''');
   }

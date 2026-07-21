@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../services/database_helper.dart';
 import '../dashboard/dashboard_shell.dart';
@@ -16,7 +17,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
   bool _isLoading = false;
 
   final TextEditingController _budgetController = TextEditingController();
-  final TextEditingController _tariffController = TextEditingController(text: '11.08'); 
+  final TextEditingController _tariffController = TextEditingController(text: '11.08');
   String _householdSize = 'Small';
 
   @override
@@ -46,7 +47,6 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
     final tariff = double.tryParse(_tariffController.text) ?? 11.08;
 
     try {
-      // Save directly to the local SQLite engine for offline use
       final db = await DatabaseHelper.instance.database;
       await db.update(
         'user_settings',
@@ -59,7 +59,6 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
         whereArgs: [1],
       );
 
-      // Navigate straight to the dashboard
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -81,7 +80,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: AppColors.globalGradient,
+      decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
@@ -133,7 +132,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: _isLoading 
+                        child: _isLoading
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : Text(isLastStep ? 'Enter Dashboard' : 'Continue', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
@@ -156,20 +155,55 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                 isActive: _currentStep >= 0,
                 state: _currentStep > 0 ? StepState.complete : StepState.indexed,
                 content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
-                    CustomTextField(
-                      controller: _budgetController,
-                      hint: 'Target Monthly Budget (₱)',
-                      icon: Icons.account_balance_wallet_outlined,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Target Budget', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          const Text('How much are you willing to spend on electricity this month?', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                          const SizedBox(height: 12),
+                          CustomTextField(
+                            controller: _budgetController,
+                            hint: 'e.g. 1500',
+                            icon: Icons.account_balance_wallet_outlined,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 15),
-                    CustomTextField(
-                      controller: _tariffController,
-                      hint: 'Local Tariff Rate (₱/kWh)',
-                      icon: Icons.bolt,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Utility Rate', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          const Text('Check your latest electric bill for the exact ₱/kWh rate.', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                          const SizedBox(height: 12),
+                          CustomTextField(
+                            controller: _tariffController,
+                            hint: 'e.g. 11.08',
+                            icon: Icons.bolt,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -179,8 +213,11 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                 subtitle: const Text('Sets the kVA scale', style: TextStyle(color: AppColors.textHintColor)),
                 isActive: _currentStep >= 1,
                 content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
+                    const Text('Select your setup size to enforce safe power distribution limits.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(color: AppColors.inputBackground, borderRadius: BorderRadius.circular(16)),
@@ -203,9 +240,9 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
   }
 
   Widget _buildRadioOption(String title) {
-    String value = title.split(' ').first; 
+    String value = title.split(' ').first;
     bool isSelected = _householdSize == value;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _householdSize = value),
       behavior: HitTestBehavior.opaque,
