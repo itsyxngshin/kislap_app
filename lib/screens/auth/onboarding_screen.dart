@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'sign_up_screen.dart';
-import '../dashboard/dashboard_shell.dart';
 import 'sign_in_screen.dart';
+import 'guest_setup_screen.dart'; // <-- Imports the new guest setup flow
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -131,9 +131,10 @@ class OnboardingScreen extends StatelessWidget {
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
+                      // Routes directly to the new Guest Setup Stepper
+                      Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const DashboardShell()),
+                        MaterialPageRoute(builder: (_) => const GuestSetupScreen()),
                       );
                     },
                     child: Text(
