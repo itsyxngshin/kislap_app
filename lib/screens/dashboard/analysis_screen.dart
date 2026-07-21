@@ -52,7 +52,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
     final devices = ref.watch(inventoryProvider);
 
-    // Calculate Original vs Optimized Data
     double originalDailyKwh = 0;
     double optimizedDailyKwh = 0;
 
@@ -64,8 +63,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
     final double originalMonthlyCost = originalDailyKwh * _activeRate * 30;
     final double optimizedMonthlyCost = optimizedDailyKwh * _activeRate * 30;
-
-    // Chart scaling logic
     final double maxCost = originalMonthlyCost > _targetBudget
         ? originalMonthlyCost
         : _targetBudget;
@@ -101,7 +98,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Big Number Comparison
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -171,7 +167,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Visual Bar Chart
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -214,7 +209,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               const SizedBox(height: 30),
 
               Text(
-                'DEVICE LEVEL ADJUSTMENTS',
+                'INTERACTIVE ADJUSTMENTS',
                 style: TextStyle(
                   color: hintColor,
                   fontSize: 12,
@@ -228,7 +223,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     device.adjustedHours < device.userAssignedHours;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: surfaceColor.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
@@ -240,14 +235,22 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        device.isLocked ? Icons.lock : Icons.auto_graph,
+                      // INTERACTIVE LOCK BUTTON
+                      IconButton(
+                        icon: Icon(
+                          device.isLocked ? Icons.lock : Icons.lock_open,
+                        ),
                         color: device.isLocked
                             ? AppColors.appYellow
                             : (isReduced ? Colors.orange : Colors.greenAccent),
-                        size: 20,
+                        onPressed: () {
+                          // Tapping this updates the Riverpod state and triggers real-time graph changes
+                          ref
+                              .read(inventoryProvider.notifier)
+                              .toggleLock(device.id, device.isLocked);
+                        },
                       ),
-                      const SizedBox(width: 15),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +300,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     Color textColor,
     Color hintColor,
   ) {
-    // Prevent division by zero
     double percentage = maxScale > 0 ? (value / maxScale) : 0;
     if (percentage > 1.0) percentage = 1.0;
 

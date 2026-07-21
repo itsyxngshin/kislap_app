@@ -6,6 +6,7 @@ import '../../providers/inventory_provider.dart';
 import '../../services/database_helper.dart';
 import 'add_device_screen.dart';
 import 'settings_screen.dart';
+import 'analysis_screen.dart';
 import '../../services/export_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -17,7 +18,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   double _activeRate = 11.08;
-  double _targetBudget = 1500.0;
+  double _targetBudget = 0.0;
   bool _isLoadingSettings = true;
 
   @override
@@ -34,6 +35,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         setState(() {
           _activeRate = (settings.first['tariff_rate'] as num).toDouble();
           _targetBudget = (settings.first['monthly_budget'] as num).toDouble();
+
+          if (_activeRate <= 0) _activeRate = 11.08;
         });
       }
     } catch (_) {}
@@ -52,17 +55,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    // Reactively watch the inventory list state
     final devices = ref.watch(inventoryProvider);
 
-    // Aggregate daily consumption and costs
-    double totalDailyKwh = 0.0;
+    // Calculate both Original and Optimized daily usage
+    double originalDailyKwh = 0.0;
+    double optimizedDailyKwh = 0.0;
     for (var device in devices) {
-      totalDailyKwh += (device.presetWattage / 1000) * device.adjustedHours;
+      final double kw = device.presetWattage / 1000;
+      originalDailyKwh += kw * device.userAssignedHours;
+      optimizedDailyKwh += kw * device.adjustedHours;
     }
 
-    final double totalDailyCost = totalDailyKwh * _activeRate;
-    final double totalMonthlyCost = totalDailyCost * 30;
+    // Convert daily to monthly costs
+    final double originalMonthlyCost = originalDailyKwh * _activeRate * 30;
+    final double optimizedMonthlyCost = optimizedDailyKwh * _activeRate * 30;
 
     return Container(
       decoration: AppTheme.globalBackground(context),
@@ -79,7 +85,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- HEADER ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -116,16 +121,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 25),
 
-              // --- 1. EXTRACTED GLASSMORPHISM SUMMARY CARD ---
+              // Glassmorphism Summary Card with the new Dynamic Over-Budget Warning
               _buildSummaryCard(
-                totalMonthlyCost: totalMonthlyCost,
+                originalMonthlyCost: originalMonthlyCost,
+                optimizedMonthlyCost: optimizedMonthlyCost,
                 surfaceColor: surfaceColor,
                 textColor: textColor,
                 hintColor: hintColor,
               ),
               const SizedBox(height: 20),
 
-              // --- 2. SECONDARY METRICS ---
               Row(
                 children: [
                   Expanded(
@@ -134,22 +139,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       decoration: BoxDecoration(
                         color: surfaceColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                        border: Border.all(
+                          color: textColor.withValues(alpha: 0.05),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.bolt, color: AppColors.appYellow, size: 20),
+                          const Icon(
+                            Icons.bolt,
+                            color: AppColors.appYellow,
+                            size: 20,
+                          ),
                           const SizedBox(height: 10),
                           Text(
-                            '${totalDailyKwh.toStringAsFixed(1)} kWh',
+                            '${optimizedDailyKwh.toStringAsFixed(1)} kWh',
                             style: TextStyle(
                               color: textColor,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text("Today's draw", style: TextStyle(color: hintColor, fontSize: 12)),
+                          Text(
+                            "Today's draw",
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -161,22 +175,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       decoration: BoxDecoration(
                         color: surfaceColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                        border: Border.all(
+                          color: textColor.withValues(alpha: 0.05),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.access_time, color: Colors.greenAccent, size: 20),
+                          const Icon(
+                            Icons.access_time,
+                            color: Colors.greenAccent,
+                            size: 20,
+                          ),
                           const SizedBox(height: 10),
                           Text(
-                            '₱${totalDailyCost.toStringAsFixed(0)}',
+                            '₱${(optimizedDailyKwh * _activeRate).toStringAsFixed(0)}',
                             style: TextStyle(
                               color: textColor,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text("Est. cost today", style: TextStyle(color: hintColor, fontSize: 12)),
+                          Text(
+                            "Est. cost today",
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -185,42 +208,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 30),
 
-              // --- 3. QUICK ACTIONS ---
-              Text('Quick Actions', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                'Quick Actions',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildQuickAction(Icons.add, 'Add item', isPrimary: true, surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AddDeviceScreen()));
-                  }),
-                  _buildQuickAction(Icons.show_chart, 'Reports', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    // Navigate to reports if needed
-                  }),
-                  _buildQuickAction(Icons.settings, 'Config', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen()));
-                  }),
-                  _buildQuickAction(Icons.ios_share, 'Export', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Generating Excel file...'), duration: Duration(seconds: 1)),
-                    );
-
-                    await ExportService.exportScheduleToExcel(
-                      inventory: devices,
-                      tariffRate: _activeRate,
-                      targetBudget: _targetBudget,
-                    );
-                  }),
+                  _buildQuickAction(
+                    Icons.add,
+                    'Add item',
+                    isPrimary: true,
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddDeviceScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.show_chart,
+                    'Reports',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AnalysisScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.settings,
+                    'Config',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.ios_share,
+                    'Export',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Generating Excel file...'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      await ExportService.exportScheduleToExcel(
+                        inventory: devices,
+                        tariffRate: _activeRate,
+                        targetBudget: _targetBudget,
+                      );
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 30),
 
-              // --- 4. OPTIMIZED SCHEDULE / APPLIANCE INVENTORY LIST ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Optimized Schedule', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${devices.length} items', style: TextStyle(color: hintColor, fontSize: 13)),
+                  Text(
+                    'Optimized Schedule',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '${devices.length} items',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
                 ],
               ),
               const SizedBox(height: 15),
@@ -248,7 +328,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final item = devices[index];
-                    return _buildApplianceCard(item, surfaceColor, textColor, hintColor);
+                    return _buildApplianceCard(
+                      item,
+                      surfaceColor,
+                      textColor,
+                      hintColor,
+                    );
                   },
                 ),
             ],
@@ -258,15 +343,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // GLASSMORPHISM SUMMARY CARD HELPER
   Widget _buildSummaryCard({
-    required double totalMonthlyCost,
+    required double originalMonthlyCost,
+    required double optimizedMonthlyCost,
     required Color surfaceColor,
     required Color textColor,
     required Color hintColor,
   }) {
-    final bool isBreached = totalMonthlyCost > _targetBudget;
-    final Color statusColor = isBreached ? AppColors.adminRed : Colors.greenAccent;
+    // If the original unoptimized usage breaches the target budget
+    final bool originalBreached = originalMonthlyCost > _targetBudget;
+
+    // If the user locked so many high-usage items that even the optimized algorithm breached the budget
+    final bool systemBreached = optimizedMonthlyCost > _targetBudget;
+
+    final Color statusColor = systemBreached
+        ? AppColors.adminRed
+        : Colors.greenAccent;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -279,7 +371,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 15,
             offset: const Offset(0, 8),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -289,11 +381,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'ESTIMATED MONTHLY BILL',
-                style: TextStyle(color: hintColor, fontSize: 12, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                'OPTIMIZED MONTHLY BILL',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -301,11 +401,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(isBreached ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: statusColor, size: 14),
+                    Icon(
+                      systemBreached
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                      color: statusColor,
+                      size: 14,
+                    ),
                     const SizedBox(width: 4),
                     Text(
-                      isBreached ? 'Over Budget' : 'On Track',
-                      style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                      systemBreached ? 'Over Budget' : 'On Track',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -316,29 +426,83 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('₱', style: TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text(
+                '₱',
+                style: TextStyle(
+                  color: AppColors.appYellow,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(width: 4),
               Text(
-                totalMonthlyCost.toStringAsFixed(2),
-                style: TextStyle(color: textColor, fontSize: 36, fontWeight: FontWeight.bold, height: 1.0),
+                optimizedMonthlyCost.toStringAsFixed(2),
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
+                ),
               ),
               const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Limit: ₱${_targetBudget.toStringAsFixed(0)}', style: TextStyle(color: hintColor, fontSize: 13)),
-                  Text('Rate: ₱${_activeRate.toStringAsFixed(2)}/kWh', style: TextStyle(color: hintColor, fontSize: 13)),
+                  Text(
+                    'Limit: ₱${_targetBudget.toStringAsFixed(0)}',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
+                  Text(
+                    'Rate: ₱${_activeRate.toStringAsFixed(2)}/kWh',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 20),
 
-          // Visual Progress Bar
+          // DYNAMIC PROJECTED BILL WARNING
+          if (originalBreached && !systemBreached) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.adminRed.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.adminRed.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppColors.adminRed,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Unregulated Projected Bill: ₱${originalMonthlyCost.toStringAsFixed(2)}\nSystem successfully scaled usage to protect your budget.',
+                      style: const TextStyle(
+                        color: AppColors.adminRed,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
-              value: _targetBudget > 0 ? (totalMonthlyCost / _targetBudget).clamp(0.0, 1.0) : 0,
+              value: _targetBudget > 0
+                  ? (optimizedMonthlyCost / _targetBudget).clamp(0.0, 1.0)
+                  : 0,
               minHeight: 8,
               backgroundColor: Colors.black26,
               valueColor: AlwaysStoppedAnimation<Color>(statusColor),
@@ -349,8 +513,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // APPLIANCE LIST ITEM CARD
-  Widget _buildApplianceCard(dynamic item, Color surfaceColor, Color textColor, Color hintColor) {
+  Widget _buildApplianceCard(
+    dynamic item,
+    Color surfaceColor,
+    Color textColor,
+    Color hintColor,
+  ) {
     final bool isLocked = item.isLocked;
 
     return Container(
@@ -360,7 +528,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: surfaceColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : textColor.withValues(alpha: 0.05),
+          color: isLocked
+              ? AppColors.appYellow.withValues(alpha: 0.4)
+              : textColor.withValues(alpha: 0.05),
         ),
       ),
       child: Row(
@@ -368,7 +538,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : surfaceColor,
+              color: isLocked
+                  ? AppColors.appYellow.withValues(alpha: 0.1)
+                  : surfaceColor,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -382,7 +554,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.customName, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  item.customName,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${item.presetWattage}W • Target: ${item.userAssignedHours}h/day',
@@ -396,9 +575,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Text(
                 '${item.adjustedHours.toStringAsFixed(1)} hrs',
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const Text('scaled', style: TextStyle(color: Colors.white38, fontSize: 10)),
+              const Text(
+                'scaled',
+                style: TextStyle(color: Colors.white38, fontSize: 10),
+              ),
             ],
           ),
           const SizedBox(width: 10),
@@ -408,15 +594,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               color: isLocked ? AppColors.appYellow : hintColor,
               size: 22,
             ),
-            onPressed: () {
-              ref.read(inventoryProvider.notifier).toggleLock(item.id, isLocked);
-            },
+            onPressed: () => ref
+                .read(inventoryProvider.notifier)
+                .toggleLock(item.id, isLocked),
           ),
           IconButton(
             icon: Icon(Icons.delete_outline, color: hintColor, size: 20),
-            onPressed: () {
-              ref.read(inventoryProvider.notifier).removeAppliance(item.id);
-            },
+            onPressed: () =>
+                ref.read(inventoryProvider.notifier).removeAppliance(item.id),
           ),
         ],
       ),
@@ -439,7 +624,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             height: 60,
             width: 60,
             decoration: BoxDecoration(
-              color: isPrimary ? AppColors.appYellow : surfaceColor.withValues(alpha: 0.5),
+              color: isPrimary
+                  ? AppColors.appYellow
+                  : surfaceColor.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
