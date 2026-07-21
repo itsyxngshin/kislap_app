@@ -27,11 +27,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Billing History State
   List<Map<String, dynamic>> _periods = [];
   final List<String> _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
   // Generates years dynamically based on the current date
-  final List<int> _years = List.generate(DateTime.now().year - 2023, (index) => 2024 + index).reversed.toList();
+  final List<int> _years = List.generate(
+    DateTime.now().year - 2023,
+    (index) => 2024 + index,
+  ).reversed.toList();
 
   @override
   void initState() {
@@ -83,14 +96,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'id': 1,
           'tariff_rate': 0.0,
           'monthly_budget': 0.0,
-          'household_size': 'Small'
+          'household_size': 'Small',
         });
       }
 
       // Fetch historical periods
-      final periodData = await db.query('recording_periods', orderBy: 'period_month DESC');
+      final periodData = await db.query(
+        'recording_periods',
+        orderBy: 'period_month DESC',
+      );
       if (mounted) _periods = periodData;
-
     } catch (_) {}
 
     if (mounted) setState(() => _isLoading = false);
@@ -99,7 +114,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadPeriods() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      final data = await db.query('recording_periods', orderBy: 'period_month DESC');
+      final data = await db.query(
+        'recording_periods',
+        orderBy: 'period_month DESC',
+      );
       if (mounted) {
         setState(() => _periods = data);
       }
@@ -136,7 +154,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save configuration'), backgroundColor: AppColors.adminRed),
+          const SnackBar(
+            content: Text('Failed to save configuration'),
+            backgroundColor: AppColors.adminRed,
+          ),
         );
       }
     } finally {
@@ -147,7 +168,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -170,12 +195,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             return Container(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                left: 24, right: 24, top: 24,
+                left: 24,
+                right: 24,
+                top: 24,
               ),
               decoration: BoxDecoration(
                 color: surfaceColor.withValues(alpha: 0.95),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                border: Border.all(
+                  color: AppColors.appYellow.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -184,15 +215,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Log Previous Bill', style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(
+                        'Log Previous Bill',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.white54),
                         onPressed: () => Navigator.pop(context),
-                      )
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text('Record past billing rates to track your usage history over time.', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  const Text(
+                    'Record past billing rates to track your usage history over time.',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
                   const SizedBox(height: 24),
 
                   // Month & Year Dropdowns
@@ -205,11 +246,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: Colors.black26,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                           dropdownColor: surfaceColor,
-                          items: _months.map((m) => DropdownMenuItem(value: m, child: Text(m, style: TextStyle(color: textColor)))).toList(),
-                          onChanged: (val) => setModalState(() => selectedMonth = val!),
+                          items: _months
+                              .map(
+                                (m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(
+                                    m,
+                                    style: TextStyle(color: textColor),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setModalState(() => selectedMonth = val!),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -220,11 +275,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: Colors.black26,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                           dropdownColor: surfaceColor,
-                          items: _years.map((y) => DropdownMenuItem(value: y, child: Text(y.toString(), style: TextStyle(color: textColor)))).toList(),
-                          onChanged: (val) => setModalState(() => selectedYear = val!),
+                          items: _years
+                              .map(
+                                (y) => DropdownMenuItem(
+                                  value: y,
+                                  child: Text(
+                                    y.toString(),
+                                    style: TextStyle(color: textColor),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setModalState(() => selectedYear = val!),
                         ),
                       ),
                     ],
@@ -236,7 +305,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     controller: rateController,
                     hint: 'Utility Rate (₱/kWh)',
                     icon: Icons.bolt,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                   ),
                   const SizedBox(height: 30),
 
@@ -247,14 +318,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () async {
                         final rate = double.tryParse(rateController.text);
                         if (rate == null || rate <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid rate'), backgroundColor: AppColors.adminRed));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Enter a valid rate'),
+                              backgroundColor: AppColors.adminRed,
+                            ),
+                          );
                           return;
                         }
 
                         int monthIndex = _months.indexOf(selectedMonth) + 1;
-                        String paddedMonth = monthIndex.toString().padLeft(2, '0');
+                        String paddedMonth = monthIndex.toString().padLeft(
+                          2,
+                          '0',
+                        );
                         String periodMonth = '$selectedYear-$paddedMonth-01';
-                        int lastDay = DateTime(selectedYear, monthIndex + 1, 0).day;
+                        int lastDay = DateTime(
+                          selectedYear,
+                          monthIndex + 1,
+                          0,
+                        ).day;
                         String endDate = '$selectedYear-$paddedMonth-$lastDay';
 
                         try {
@@ -270,25 +353,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (mounted) {
                             Navigator.pop(context);
                             _loadPeriods();
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Billing period saved!'), backgroundColor: Colors.green));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Billing period saved!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
                           }
                         } catch (e) {
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Period already exists or error occurred.'), backgroundColor: AppColors.adminRed));
+                          if (mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Period already exists or error occurred.',
+                                ),
+                                backgroundColor: AppColors.adminRed,
+                              ),
+                            );
                         }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.appYellow,
                         foregroundColor: Colors.black87,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: const Text('Save Period', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Save Period',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             );
-          }
+          },
         );
       },
     );
@@ -296,7 +400,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+    if (_isLoading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.appYellow),
+      );
 
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withValues(alpha: 0.6);
@@ -307,7 +414,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+          padding: const EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: 120,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -315,54 +427,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Row(
                 children: [
                   Container(
-                    height: 60, width: 60,
-                    decoration: const BoxDecoration(color: AppColors.appYellow, shape: BoxShape.circle),
+                    height: 60,
+                    width: 60,
+                    decoration: const BoxDecoration(
+                      color: AppColors.appYellow,
+                      shape: BoxShape.circle,
+                    ),
                     child: Center(
-                      child: Text(_fullName.isNotEmpty ? _fullName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        _fullName.isNotEmpty ? _fullName[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 15),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_fullName, style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        _fullName,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(_email, style: TextStyle(color: hintColor, fontSize: 14)),
+                      Text(
+                        _email,
+                        style: TextStyle(color: hintColor, fontSize: 14),
+                      ),
                     ],
-                  )
+                  ),
                 ],
               ),
               const SizedBox(height: 40),
 
               // 2. Financial Configuration
-              Text('FINANCIAL BASELINE', style: TextStyle(color: hintColor, fontSize: 12, letterSpacing: 1.2)),
+              Text(
+                'FINANCIAL BASELINE',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: surfaceColor.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Monthly Budget Limit', style: TextStyle(color: hintColor, fontSize: 13)),
+                    Text(
+                      'Monthly Budget Limit',
+                      style: TextStyle(color: hintColor, fontSize: 13),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _budgetController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                       decoration: InputDecoration(
                         prefixText: '₱ ',
                         prefixStyle: TextStyle(color: textColor, fontSize: 18),
                         filled: true,
                         fillColor: surfaceColor,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
-                    Text('Local Tariff Rate', style: TextStyle(color: hintColor, fontSize: 13)),
+                    Text(
+                      'Local Tariff Rate',
+                      style: TextStyle(color: hintColor, fontSize: 13),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _tariffController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       style: TextStyle(color: textColor, fontSize: 16),
                       decoration: InputDecoration(
                         prefixText: '₱ ',
@@ -370,7 +530,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         suffixStyle: TextStyle(color: hintColor),
                         filled: true,
                         fillColor: surfaceColor,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ],
@@ -379,16 +542,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 30),
 
               // 3. Classification
-              Text('HOUSEHOLD CLASSIFICATION', style: TextStyle(color: hintColor, fontSize: 12, letterSpacing: 1.2)),
+              // 3. Classification
+              Text(
+                'HOUSEHOLD CLASSIFICATION',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: surfaceColor.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Column(
                   children: [
-                    _buildRadioOption('Small (0 - 5 kVA)', 'Small', textColor, hintColor),
-                    _buildRadioOption('Medium (6 - 15 kVA)', 'Medium', textColor, hintColor),
-                    _buildRadioOption('Large (16 - 25 kVA)', 'Large', textColor, hintColor),
+                    _buildRadioOption(
+                      'Small (0 - 5 kVA)',
+                      'Small',
+                      'Basic appliances only. Fans, TV, fridge, and lights.',
+                      textColor,
+                      hintColor,
+                    ),
+                    _buildRadioOption(
+                      'Medium (6 - 15 kVA)',
+                      'Medium',
+                      'Standard home. 1-2 air conditioners, washing machine, fridge, etc.',
+                      textColor,
+                      hintColor,
+                    ),
+                    _buildRadioOption(
+                      'Large (16 - 25 kVA)',
+                      'Large',
+                      'Heavy usage. Multiple ACs, water heaters, and large appliances.',
+                      textColor,
+                      hintColor,
+                    ),
                   ],
                 ),
               ),
@@ -403,11 +595,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     backgroundColor: Colors.orange.shade700,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isSaving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Save Configuration', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Save Configuration',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 40),
@@ -416,12 +623,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('BILLING HISTORY', style: TextStyle(color: hintColor, fontSize: 12, letterSpacing: 1.2)),
+                  Text(
+                    'BILLING HISTORY',
+                    style: TextStyle(
+                      color: hintColor,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                   TextButton.icon(
                     onPressed: _showAddPeriodModal,
-                    icon: const Icon(Icons.add, color: AppColors.appYellow, size: 16),
-                    label: const Text('Add Month', style: TextStyle(color: AppColors.appYellow, fontSize: 12)),
-                  )
+                    icon: const Icon(
+                      Icons.add,
+                      color: AppColors.appYellow,
+                      size: 16,
+                    ),
+                    label: const Text(
+                      'Add Month',
+                      style: TextStyle(
+                        color: AppColors.appYellow,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -452,7 +676,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                         color: surfaceColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                        border: Border.all(
+                          color: textColor.withValues(alpha: 0.05),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -460,14 +686,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(period['period_name'], style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(
+                                period['period_name'],
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text('Rate recorded', style: TextStyle(color: hintColor, fontSize: 12)),
+                              Text(
+                                'Rate recorded',
+                                style: TextStyle(
+                                  color: hintColor,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           ),
                           Text(
                             '₱${period['billing_rate'].toStringAsFixed(2)}',
-                            style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -477,21 +720,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 40),
 
               // 5. Appearance Toggles
-              Text('APPEARANCE', style: TextStyle(color: hintColor, fontSize: 12, letterSpacing: 1.2)),
+              Text(
+                'APPEARANCE',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              ),
               const SizedBox(height: 10),
               Container(
-                decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: surfaceColor.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: ValueListenableBuilder<ThemeMode>(
                   valueListenable: themeNotifier,
                   builder: (_, currentMode, _) {
                     return _buildSwitchOption(
                       title: 'Dark Mode',
-                      icon: currentMode == ThemeMode.dark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                      icon: currentMode == ThemeMode.dark
+                          ? Icons.dark_mode_outlined
+                          : Icons.light_mode_outlined,
                       value: currentMode == ThemeMode.dark,
                       textColor: textColor,
                       onChanged: (isDark) {
-                        themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
-                      }
+                        themeNotifier.value = isDark
+                            ? ThemeMode.dark
+                            : ThemeMode.light;
+                      },
                     );
                   },
                 ),
@@ -502,15 +759,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: _email == 'Offline Mode' || _email == 'Local Offline Mode'
-                      ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen()))
+                  onPressed:
+                      _email == 'Offline Mode' || _email == 'Local Offline Mode'
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SignInScreen(),
+                          ),
+                        )
                       : _signOut,
-                  icon: Icon(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? Icons.cloud_upload_outlined : Icons.logout, color: hintColor),
-                  label: Text(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? 'Sign in to Sync' : 'Sign out', style: TextStyle(color: hintColor, fontSize: 16)),
+                  icon: Icon(
+                    _email == 'Offline Mode' || _email == 'Local Offline Mode'
+                        ? Icons.cloud_upload_outlined
+                        : Icons.logout,
+                    color: hintColor,
+                  ),
+                  label: Text(
+                    _email == 'Offline Mode' || _email == 'Local Offline Mode'
+                        ? 'Sign in to Sync'
+                        : 'Sign out',
+                    style: TextStyle(color: hintColor, fontSize: 16),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: hintColor.withValues(alpha: 0.3)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -521,26 +796,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildRadioOption(String title, String value, Color textColor, Color hintColor) {
+  Widget _buildRadioOption(
+    String title,
+    String value,
+    String description,
+    Color textColor,
+    Color hintColor,
+  ) {
     bool isSelected = _householdSize == value;
     return GestureDetector(
       onTap: () => setState(() => _householdSize = value),
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: isSelected ? textColor.withValues(alpha: 0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? textColor.withValues(alpha: 0.05)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.appYellow.withValues(alpha: 0.3)
+                : Colors.transparent,
+          ),
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(color: isSelected ? textColor : hintColor, fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-            Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: isSelected ? AppColors.appYellow : hintColor, size: 20),
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.appYellow : hintColor,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? textColor : hintColor,
+                      fontSize: 15,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: hintColor,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSwitchOption({required String title, IconData? icon, required bool value, required Color textColor, required Function(bool) onChanged}) {
+  Widget _buildSwitchOption({
+    required String title,
+    IconData? icon,
+    required bool value,
+    required Color textColor,
+    required Function(bool) onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -548,7 +878,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Row(
             children: [
-              if (icon != null) ...[Icon(icon, color: AppColors.appYellow, size: 20), const SizedBox(width: 12)],
+              if (icon != null) ...[
+                Icon(icon, color: AppColors.appYellow, size: 20),
+                const SizedBox(width: 12),
+              ],
               Text(title, style: TextStyle(color: textColor, fontSize: 14)),
             ],
           ),
@@ -557,7 +890,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: onChanged,
             activeThumbColor: AppColors.appYellow,
             inactiveThumbColor: textColor.withValues(alpha: 0.5),
-            inactiveTrackColor: textColor.withValues(alpha: 0.1)
+            inactiveTrackColor: textColor.withValues(alpha: 0.1),
           ),
         ],
       ),

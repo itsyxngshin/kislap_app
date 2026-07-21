@@ -1,10 +1,7 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart'; // Required to check kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -14,86 +11,153 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('kislap_local.db');
+    _database = await _initDatabase();
     return _database!;
   }
 
-  Future<Database> _initDB(String filePath) async {
-    // 1. WEB SUPPORT (Vercel)
+  Future<Database> _initDatabase() async {
+    Database db;
+
     if (kIsWeb) {
-      databaseFactory = databaseFactoryFfiWeb;
-      return await openDatabase(filePath, version: 2, onCreate: _createDB);
+      var factory = databaseFactoryFfiWeb;
+      db = await factory.openDatabase(
+        'kislap_web.db',
+        options: OpenDatabaseOptions(version: 1, onCreate: _onCreate),
+      );
+    } else {
+      String path = join(await getDatabasesPath(), 'kislap.db');
+      db = await openDatabase(path, version: 1, onCreate: _onCreate);
     }
 
-    // 2. WINDOWS / LINUX LAPTOP SIMULATION
-    if (Platform.isWindows || Platform.isLinux) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
+    // AUTO-SEED CHECK: Ensures Vercel users who already created the DB get the catalog!
+    await _ensurePresetsPopulated(db);
 
-      // On desktop, we can just use the local project directory
-      final path = join(await getDatabasesPath(), filePath);
-      return await openDatabase(path, version: 2, onCreate: _createDB);
-    }
-
-    // 3. NATIVE ANDROID / iOS (Default Behavior)
-    final dbDirectory = await getApplicationDocumentsDirectory();
-    final path = join(dbDirectory.path, filePath);
-    return await openDatabase(path, version: 2, onCreate: _createDB);
+    return db;
   }
 
-  Future<void> _createDB(Database db, int version) async {
-    // 1. Master Appliance Presets (Maintained by Admin)
+  Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE appliance_presets (
+      CREATE TABLE IF NOT EXISTS appliance_presets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         appliance_name TEXT NOT NULL,
         category TEXT NOT NULL,
-        preset_wattage REAL NOT NULL,
-        typical_setting TEXT NOT NULL
+        preset_wattage REAL NOT NULL
       )
     ''');
 
-    // 2. User Inventory (Each row represents a unique physical item)
     await db.execute('''
-      CREATE TABLE user_inventory (
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id INTEGER PRIMARY KEY,
+        tariff_rate REAL NOT NULL,
+        monthly_budget REAL NOT NULL,
+        household_size TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS user_inventory (
+        id TEXT PRIMARY KEY,
+        preset_id INTEGER,
+        custom_name TEXT NOT NULL,
+        user_assigned_hours REAL NOT NULL,
+        adjusted_hours REAL NOT NULL,
+        is_locked INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recording_periods (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        preset_id INTEGER NOT NULL,
-        custom_name TEXT NOT NULL, -- e.g., 'Master Bedroom AC', 'Living Room Fan'
-        user_assigned_hours REAL NOT NULL, -- The user-defined baseline hours
-        adjusted_hours REAL NOT NULL, -- Calculated by the optimization algorithm
-        is_locked INTEGER NOT NULL DEFAULT 0, -- 1 = Locked, 0 = Unlocked
-        FOREIGN KEY (preset_id) REFERENCES appliance_presets (id) ON DELETE CASCADE
+        period_month TEXT NOT NULL UNIQUE,
+        period_name TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        billing_rate REAL NOT NULL
       )
     ''');
+  }
 
-    // 3. System Configuration
-    await db.execute('''
-      CREATE TABLE user_settings (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        tariff_rate REAL NOT NULL DEFAULT 0.0,
-        monthly_budget REAL NOT NULL DEFAULT 0.0,
-        household_size TEXT NOT NULL DEFAULT 'Small'
-      )
-    ''');
-    // 4. Historical Tariff Ledger (For Monthly Variations)
-    await db.execute('''
-          CREATE TABLE monthly_tariffs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            billing_month TEXT NOT NULL, -- Format: YYYY-MM (e.g., '2026-07')
-            tariff_rate REAL NOT NULL, -- The user-inputted ₱/kWh for this specific month
-            UNIQUE(billing_month)
-          )
-        ''');
+  // Self-healing seed function
+  Future<void> _ensurePresetsPopulated(Database db) async {
+    try {
+      final countResult = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM appliance_presets',
+      );
+      final count = Sqflite.firstIntValue(countResult) ?? 0;
 
-    await db.execute('''
-          CREATE TABLE recording_periods (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            period_month TEXT NOT NULL UNIQUE,
-            period_name TEXT NOT NULL,
-            start_date TEXT NOT NULL,
-            end_date TEXT NOT NULL,
-            billing_rate REAL NOT NULL
-          )
-        ''');
+      if (count == 0) {
+        final List<Map<String, dynamic>> defaultPresets = [
+          {
+            'appliance_name': 'Inverter Aircon (1.0 HP)',
+            'category': 'Cooling',
+            'preset_wattage': 750.0,
+          },
+          {
+            'appliance_name': 'Window Aircon (0.5 HP)',
+            'category': 'Cooling',
+            'preset_wattage': 500.0,
+          },
+          {
+            'appliance_name': 'Electric Fan (Stand)',
+            'category': 'Cooling',
+            'preset_wattage': 65.0,
+          },
+          {
+            'appliance_name': 'Refrigerator (Standard)',
+            'category': 'Kitchen',
+            'preset_wattage': 150.0,
+          },
+          {
+            'appliance_name': 'Rice Cooker',
+            'category': 'Kitchen',
+            'preset_wattage': 400.0,
+          },
+          {
+            'appliance_name': 'Microwave Oven',
+            'category': 'Kitchen',
+            'preset_wattage': 1000.0,
+          },
+          {
+            'appliance_name': 'LED TV (32 inch)',
+            'category': 'Entertainment',
+            'preset_wattage': 45.0,
+          },
+          {
+            'appliance_name': 'Wi-Fi Router',
+            'category': 'Electronics',
+            'preset_wattage': 10.0,
+          },
+          {
+            'appliance_name': 'Laptop (Charging)',
+            'category': 'Electronics',
+            'preset_wattage': 65.0,
+          },
+          {
+            'appliance_name': 'Washing Machine (Twin Tub)',
+            'category': 'Laundry',
+            'preset_wattage': 400.0,
+          },
+          {
+            'appliance_name': 'Clothes Iron',
+            'category': 'Laundry',
+            'preset_wattage': 1000.0,
+          },
+          {
+            'appliance_name': 'Water Heater',
+            'category': 'Bathroom',
+            'preset_wattage': 3000.0,
+          },
+          {
+            'appliance_name': 'LED Bulb',
+            'category': 'Lighting',
+            'preset_wattage': 9.0,
+          },
+        ];
+
+        for (var preset in defaultPresets) {
+          await db.insert('appliance_presets', preset);
+        }
+      }
+    } catch (_) {}
   }
 }
