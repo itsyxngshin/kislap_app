@@ -87,72 +87,31 @@ class DatabaseHelper {
 
       if (count == 0) {
         final List<Map<String, dynamic>> defaultPresets = [
-          {
-            'appliance_name': 'Inverter Aircon (1.0 HP)',
-            'category': 'Cooling',
-            'preset_wattage': 750.0,
-          },
-          {
-            'appliance_name': 'Window Aircon (0.5 HP)',
-            'category': 'Cooling',
-            'preset_wattage': 500.0,
-          },
-          {
-            'appliance_name': 'Electric Fan (Stand)',
-            'category': 'Cooling',
-            'preset_wattage': 65.0,
-          },
-          {
-            'appliance_name': 'Refrigerator (Standard)',
-            'category': 'Kitchen',
-            'preset_wattage': 150.0,
-          },
-          {
-            'appliance_name': 'Rice Cooker',
-            'category': 'Kitchen',
-            'preset_wattage': 400.0,
-          },
-          {
-            'appliance_name': 'Microwave Oven',
-            'category': 'Kitchen',
-            'preset_wattage': 1000.0,
-          },
-          {
-            'appliance_name': 'LED TV (32 inch)',
-            'category': 'Entertainment',
-            'preset_wattage': 45.0,
-          },
-          {
-            'appliance_name': 'Wi-Fi Router',
-            'category': 'Electronics',
-            'preset_wattage': 10.0,
-          },
-          {
-            'appliance_name': 'Laptop (Charging)',
-            'category': 'Electronics',
-            'preset_wattage': 65.0,
-          },
-          {
-            'appliance_name': 'Washing Machine (Twin Tub)',
-            'category': 'Laundry',
-            'preset_wattage': 400.0,
-          },
-          {
-            'appliance_name': 'Clothes Iron',
-            'category': 'Laundry',
-            'preset_wattage': 1000.0,
-          },
-          {
-            'appliance_name': 'Water Heater',
-            'category': 'Bathroom',
-            'preset_wattage': 3000.0,
-          },
-          {
-            'appliance_name': 'LED Bulb',
-            'category': 'Lighting',
-            'preset_wattage': 9.0,
-          },
-        ];
+                  // 1. Air Conditioning & Cooling
+                  {'appliance_name': 'Window Aircon (0.75 HP)', 'category': 'Cooling', 'preset_wattage': 760.0}, // Avg of 720-800W
+                  {'appliance_name': 'Inverter Window Aircon (1.0 HP)', 'category': 'Cooling', 'preset_wattage': 650.0},
+                  {'appliance_name': 'Inverter Split Type (1.5 HP)', 'category': 'Cooling', 'preset_wattage': 1050.0},
+                  {'appliance_name': 'Desk/Stand Fan (12"-16")', 'category': 'Cooling', 'preset_wattage': 55.0},
+
+                  // 2. Refrigeration & Kitchen
+                  {'appliance_name': 'Conventional Refrigerator (6-8 cu.ft.)', 'category': 'Kitchen', 'preset_wattage': 150.0},
+                  {'appliance_name': 'Inverter Refrigerator (9-12 cu.ft.)', 'category': 'Kitchen', 'preset_wattage': 115.0},
+                  {'appliance_name': 'Rice Cooker (1.0L-1.8L)', 'category': 'Kitchen', 'preset_wattage': 575.0},
+                  {'appliance_name': 'Microwave Oven', 'category': 'Kitchen', 'preset_wattage': 1000.0},
+                  {'appliance_name': 'Induction Cooker', 'category': 'Kitchen', 'preset_wattage': 1750.0},
+                  {'appliance_name': 'Water Dispenser (Hot & Cold)', 'category': 'Kitchen', 'preset_wattage': 590.0}, // 500W heat + 90W cool
+
+                  // 3. Laundry & Housekeeping
+                  {'appliance_name': 'Twin Tub Washing Machine', 'category': 'Laundry', 'preset_wattage': 375.0},
+                  {'appliance_name': 'Flat/Steam Iron', 'category': 'Laundry', 'preset_wattage': 1125.0},
+
+                  // 4. Personal Care, Computing & Lighting
+                  {'appliance_name': 'Shower Water Heater (Instant)', 'category': 'Bathroom', 'preset_wattage': 3750.0},
+                  {'appliance_name': 'LED Smart TV (32"-43")', 'category': 'Entertainment', 'preset_wattage': 40.0},
+                  {'appliance_name': 'Laptop (Standard Office/Student)', 'category': 'Electronics', 'preset_wattage': 47.5},
+                  {'appliance_name': 'Wi-Fi Router / Fiber Modem', 'category': 'Electronics', 'preset_wattage': 14.0},
+                  {'appliance_name': 'LED Light Bulb', 'category': 'Lighting', 'preset_wattage': 9.0},
+                ];
 
         for (var preset in defaultPresets) {
           await db.insert('appliance_presets', preset);

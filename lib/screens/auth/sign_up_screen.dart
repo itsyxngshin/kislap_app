@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../services/database_helper.dart';
-import 'otp_verification_screen.dart';
+import '../dashboard/dashboard_shell.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -102,13 +102,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       // 3. Navigate to OTP
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(email: email),
-          ),
-        );
-      }
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DashboardShell(),
+                ),
+                (route) => false, // This destroys the back-stack
+              );
+            }
     } on AuthException catch (e) {
       if (mounted) _showError(e.message);
     } catch (e) {

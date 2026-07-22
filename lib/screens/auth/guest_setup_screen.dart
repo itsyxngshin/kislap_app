@@ -44,7 +44,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
     setState(() => _isLoading = true);
 
     final budget = double.tryParse(_budgetController.text) ?? 0.0;
-    final tariff = double.tryParse(_tariffController.text) ?? 11.08;
+    final tariff = double.tryParse(_tariffController.text) ?? 12.35;
 
     try {
       final db = await DatabaseHelper.instance.database;

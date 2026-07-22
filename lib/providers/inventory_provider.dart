@@ -84,69 +84,66 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
   }
 
   // --- THE PROPORTIONAL REDUCTION ALGORITHM ---
-  Future<void> _optimizeAndSave(List<Appliance> currentState) async {
-    final db = await DatabaseHelper.instance.database;
-    final settings = await db.query('user_settings', limit: 1);
+  // --- THE OFFICIAL BUDGET OPTIMIZATION ENGINE ---
+    Future<void> _optimizeAndSave(List<Appliance> currentState) async {
+      final db = await DatabaseHelper.instance.database;
+      final settings = await db.query('user_settings', limit: 1);
 
-    double budget = 0.0;
-    double tariff = 11.08;
+      double budget = 0.0;
+      double tariff = 12.35; // Aligned with ALECO June 2026 Mainland Rate
 
-    if (settings.isNotEmpty) {
-      budget = (settings.first['monthly_budget'] as num).toDouble();
-      tariff = (settings.first['tariff_rate'] as num).toDouble();
-    }
-
-    if (budget <= 0) {
-      // Safely assign state without the linter yelling at you
-      state = currentState;
-      return;
-    }
-
-    // 1. Calculate Allowances
-    final double maxMonthlyKwh = budget / tariff;
-    final double maxDailyKwh = maxMonthlyKwh / 30;
-
-    // 2. Calculate Locked Consumption
-    double lockedDailyKwh = 0.0;
-    for (var item in currentState) {
-      if (item.isLocked) {
-        lockedDailyKwh += (item.presetWattage / 1000) * item.userAssignedHours;
+      if (settings.isNotEmpty) {
+        budget = (settings.first['monthly_budget'] as num).toDouble();
+        tariff = (settings.first['tariff_rate'] as num).toDouble();
       }
-    }
 
-    // 3. Calculate Remaining Budget for Unlocked Devices
-    double remainingDailyKwh = maxDailyKwh - lockedDailyKwh;
-    if (remainingDailyKwh < 0) remainingDailyKwh = 0;
-
-    // 4. Calculate Intended Unlocked Consumption
-    double intendedUnlockedKwh = 0.0;
-    for (var item in currentState) {
-      if (!item.isLocked) {
-        intendedUnlockedKwh +=
-            (item.presetWattage / 1000) * item.userAssignedHours;
+      if (budget <= 0) {
+        state = currentState;
+        return;
       }
-    }
 
-    // 5. Determine Scaling Factor
-    double scaleFactor = 1.0;
-    if (intendedUnlockedKwh > remainingDailyKwh && intendedUnlockedKwh > 0) {
-      scaleFactor = remainingDailyKwh / intendedUnlockedKwh;
-    }
+      // Step 1: Calculate the Monthly Energy Allowance
+      final double energyAllowanceKwh = budget / tariff;
 
-    // 6. Apply Scale Factor to Unlocked Devices
-    final optimizedState = currentState.map((item) {
-      if (item.isLocked) {
-        return item.copyWith(adjustedHours: item.userAssignedHours);
-      } else {
-        return item.copyWith(
-          adjustedHours: item.userAssignedHours * scaleFactor,
-        );
+      // Step 3: Calculate the Total Energy Consumption of Locked Appliances
+      double lockedMonthlyKwh = 0.0;
+      for (var item in currentState) {
+        if (item.isLocked) {
+          // Formula: (Power * Quantity * Hours * 30) / 1000
+          // Note: Assuming Quantity = 1 for the current data model iteration
+          lockedMonthlyKwh += (item.presetWattage * 1 * item.userAssignedHours * 30) / 1000;
+        }
       }
-    }).toList();
 
-    state = optimizedState;
-    // Note: Local SQLite sync to 'user_inventory' table can be added here
-  }
+      // Step 4: Determine the Remaining Energy Allowance
+      double remainingEnergy = energyAllowanceKwh - lockedMonthlyKwh;
+      if (remainingEnergy < 0) remainingEnergy = 0;
+
+      // Step 5: Calculate the Total Energy Consumption of Unlocked Appliances
+      double unlockedMonthlyKwh = 0.0;
+      for (var item in currentState) {
+        if (!item.isLocked) {
+          unlockedMonthlyKwh += (item.presetWattage * 1 * item.userAssignedHours * 30) / 1000;
+        }
+      }
+
+      // Step 6: Determine the Recommended Operating Hours
+      double reductionFactor = 1.0;
+      if (unlockedMonthlyKwh > remainingEnergy && unlockedMonthlyKwh > 0) {
+        reductionFactor = remainingEnergy / unlockedMonthlyKwh;
+      }
+
+      // Apply Reduction Factor
+      final optimizedState = currentState.map((item) {
+        if (item.isLocked) {
+          return item.copyWith(adjustedHours: item.userAssignedHours);
+        } else {
+          return item.copyWith(adjustedHours: item.userAssignedHours * reductionFactor);
+        }
+      }).toList();
+
+      state = optimizedState;
+    }
 }
 
 // UPGRADED: Modern Provider Syntax
