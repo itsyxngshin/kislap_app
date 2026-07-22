@@ -17,7 +17,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  double _activeRate = 12.35;
+  double _activeRate = 11.08;
   double _targetBudget = 0.0;
   bool _isLoadingSettings = true;
 
@@ -35,7 +35,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         setState(() {
           _activeRate = (settings.first['tariff_rate'] as num).toDouble();
           _targetBudget = (settings.first['monthly_budget'] as num).toDouble();
-          if (_activeRate <= 0) _activeRate = 12.35;
+
+          if (_activeRate <= 0) _activeRate = 11.08;
         });
       }
     } catch (_) {}
@@ -49,11 +50,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     if (_isLoadingSettings) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.appYellow),
+      );
     }
 
     final devices = ref.watch(inventoryProvider);
 
+    // Calculate both Original and Optimized daily usage
     double originalDailyKwh = 0.0;
     double optimizedDailyKwh = 0.0;
     for (var device in devices) {
@@ -62,6 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       optimizedDailyKwh += kw * device.adjustedHours;
     }
 
+    // Convert daily to monthly costs
     final double originalMonthlyCost = originalDailyKwh * _activeRate * 30;
     final double optimizedMonthlyCost = optimizedDailyKwh * _activeRate * 30;
 
@@ -71,20 +76,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         bottom: false,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+          padding: const EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: 120,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Dashboard\n(Buod)', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor, height: 1.2)),
+                  Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
                   Stack(
                     children: [
-                      Icon(Icons.notifications_outlined, color: textColor, size: 28),
+                      Icon(
+                        Icons.notifications_outlined,
+                        color: textColor,
+                        size: 28,
+                      ),
                       Positioned(
-                        right: 2, top: 2,
-                        child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: AppColors.adminRed, shape: BoxShape.circle)),
+                        right: 2,
+                        top: 2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: AppColors.adminRed,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -92,6 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 25),
 
+              // Glassmorphism Summary Card with the new Dynamic Over-Budget Warning
               _buildSummaryCard(
                 originalMonthlyCost: originalMonthlyCost,
                 optimizedMonthlyCost: optimizedMonthlyCost,
@@ -106,14 +136,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                      decoration: BoxDecoration(
+                        color: surfaceColor.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: textColor.withValues(alpha: 0.05),
+                        ),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.bolt, color: AppColors.appYellow, size: 20),
+                          const Icon(
+                            Icons.bolt,
+                            color: AppColors.appYellow,
+                            size: 20,
+                          ),
                           const SizedBox(height: 10),
-                          Text('${optimizedDailyKwh.toStringAsFixed(1)} kWh', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text("Today's draw\n(Konsumo ngayon)", style: TextStyle(color: hintColor, fontSize: 11, height: 1.3)),
+                          Text(
+                            '${optimizedDailyKwh.toStringAsFixed(1)} kWh',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            "Today's draw",
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -122,14 +172,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                      decoration: BoxDecoration(
+                        color: surfaceColor.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: textColor.withValues(alpha: 0.05),
+                        ),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.access_time, color: Colors.greenAccent, size: 20),
+                          const Icon(
+                            Icons.access_time,
+                            color: Colors.greenAccent,
+                            size: 20,
+                          ),
                           const SizedBox(height: 10),
-                          Text('₱${(optimizedDailyKwh * _activeRate).toStringAsFixed(0)}', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text("Est. cost today\n(Est. gastos ngayon)", style: TextStyle(color: hintColor, fontSize: 11, height: 1.3)),
+                          Text(
+                            '₱${(optimizedDailyKwh * _activeRate).toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            "Est. cost today",
+                            style: TextStyle(color: hintColor, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -138,24 +208,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 30),
 
-              Text('Quick Actions (Mga Aksyon)', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                'Quick Actions',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildQuickAction(Icons.add, 'Add item', isPrimary: true, surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AddDeviceScreen()));
-                  }),
-                  _buildQuickAction(Icons.show_chart, 'Analysis', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
-                  }),
-                  _buildQuickAction(Icons.settings, 'Config', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  }),
-                  _buildQuickAction(Icons.ios_share, 'Export', surfaceColor: surfaceColor, hintColor: hintColor, onTap: () async {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating Excel file...'), duration: Duration(seconds: 1)));
-                    await ExportService.exportScheduleToExcel(inventory: devices, tariffRate: _activeRate, targetBudget: _targetBudget);
-                  }),
+                  _buildQuickAction(
+                    Icons.add,
+                    'Add item',
+                    isPrimary: true,
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddDeviceScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.show_chart,
+                    'Reports',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AnalysisScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.settings,
+                    'Config',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildQuickAction(
+                    Icons.ios_share,
+                    'Export',
+                    surfaceColor: surfaceColor,
+                    hintColor: hintColor,
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Generating Excel file...'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      await ExportService.exportScheduleToExcel(
+                        inventory: devices,
+                        tariffRate: _activeRate,
+                        targetBudget: _targetBudget,
+                      );
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 30),
@@ -163,8 +289,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Optimized Schedule\n(Na-optimize na Iskedyul)', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold, height: 1.2)),
-                  Text('${devices.length} items', style: TextStyle(color: hintColor, fontSize: 13)),
+                  Text(
+                    'Optimized Schedule',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '${devices.length} items',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
                 ],
               ),
               const SizedBox(height: 15),
@@ -173,9 +309,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Center(
-                    child: Text('No appliances added yet.\n(Wala pang nailagay na gamit.)', textAlign: TextAlign.center, style: TextStyle(color: hintColor, fontSize: 14)),
+                    child: Text(
+                      'No appliances added yet.\nTap "Add item" to start optimizing.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: hintColor, fontSize: 14),
+                    ),
                   ),
                 )
               else
@@ -184,7 +327,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
-                    return _buildApplianceCard(devices[index], surfaceColor, textColor, hintColor);
+                    final item = devices[index];
+                    return _buildApplianceCard(
+                      item,
+                      surfaceColor,
+                      textColor,
+                      hintColor,
+                    );
                   },
                 ),
             ],
@@ -194,10 +343,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildSummaryCard({required double originalMonthlyCost, required double optimizedMonthlyCost, required Color surfaceColor, required Color textColor, required Color hintColor}) {
+  Widget _buildSummaryCard({
+    required double originalMonthlyCost,
+    required double optimizedMonthlyCost,
+    required Color surfaceColor,
+    required Color textColor,
+    required Color hintColor,
+  }) {
+    // If the original unoptimized usage breaches the target budget
     final bool originalBreached = originalMonthlyCost > _targetBudget;
+
+    // If the user locked so many high-usage items that even the optimized algorithm breached the budget
     final bool systemBreached = optimizedMonthlyCost > _targetBudget;
-    final Color statusColor = systemBreached ? AppColors.adminRed : Colors.greenAccent;
+
+    final Color statusColor = systemBreached
+        ? AppColors.adminRed
+        : Colors.greenAccent;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -205,7 +366,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: surfaceColor.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 15, offset: const Offset(0, 8))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,15 +380,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('OPTIMIZED MONTHLY BILL\n(NA-OPTIMIZE NA BUWANANG BILL)', style: TextStyle(color: hintColor, fontSize: 10, letterSpacing: 1.2, fontWeight: FontWeight.bold, height: 1.4)),
+              Text(
+                'OPTIMIZED MONTHLY BILL',
+                style: TextStyle(
+                  color: hintColor,
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: statusColor.withValues(alpha: 0.5))),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                ),
                 child: Row(
                   children: [
-                    Icon(systemBreached ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: statusColor, size: 14),
+                    Icon(
+                      systemBreached
+                          ? Icons.warning_amber_rounded
+                          : Icons.check_circle_outline,
+                      color: statusColor,
+                      size: 14,
+                    ),
                     const SizedBox(width: 4),
-                    Text(systemBreached ? 'Over Budget' : 'On Track', style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(
+                      systemBreached ? 'Over Budget' : 'On Track',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -231,43 +426,83 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('₱', style: TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text(
+                '₱',
+                style: TextStyle(
+                  color: AppColors.appYellow,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(width: 4),
-              Text(optimizedMonthlyCost.toStringAsFixed(2), style: TextStyle(color: textColor, fontSize: 36, fontWeight: FontWeight.bold, height: 1.0)),
+              Text(
+                optimizedMonthlyCost.toStringAsFixed(2),
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
+                ),
+              ),
               const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Limit: ₱${_targetBudget.toStringAsFixed(0)}', style: TextStyle(color: hintColor, fontSize: 13)),
-                  Text('Rate: ₱${_activeRate.toStringAsFixed(2)}/kWh', style: TextStyle(color: hintColor, fontSize: 13)),
+                  Text(
+                    'Limit: ₱${_targetBudget.toStringAsFixed(0)}',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
+                  Text(
+                    'Rate: ₱${_activeRate.toStringAsFixed(2)}/kWh',
+                    style: TextStyle(color: hintColor, fontSize: 13),
+                  ),
                 ],
               ),
             ],
           ),
+
+          // DYNAMIC PROJECTED BILL WARNING
           if (originalBreached && !systemBreached) ...[
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: AppColors.adminRed.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.adminRed.withValues(alpha: 0.3))),
+              decoration: BoxDecoration(
+                color: AppColors.adminRed.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.adminRed.withValues(alpha: 0.3),
+                ),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: AppColors.adminRed, size: 20),
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppColors.adminRed,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Unregulated Projected Bill: ₱${originalMonthlyCost.toStringAsFixed(2)}\nSystem successfully scaled usage to protect your budget.',
-                      style: const TextStyle(color: AppColors.adminRed, fontSize: 11, height: 1.4),
+                      style: const TextStyle(
+                        color: AppColors.adminRed,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
           ],
+
           const SizedBox(height: 20),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
-              value: _targetBudget > 0 ? (optimizedMonthlyCost / _targetBudget).clamp(0.0, 1.0) : 0,
+              value: _targetBudget > 0
+                  ? (optimizedMonthlyCost / _targetBudget).clamp(0.0, 1.0)
+                  : 0,
               minHeight: 8,
               backgroundColor: Colors.black26,
               valueColor: AlwaysStoppedAnimation<Color>(statusColor),
@@ -278,60 +513,127 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildApplianceCard(dynamic item, Color surfaceColor, Color textColor, Color hintColor) {
+  Widget _buildApplianceCard(
+    dynamic item,
+    Color surfaceColor,
+    Color textColor,
+    Color hintColor,
+  ) {
     final bool isLocked = item.isLocked;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : textColor.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isLocked
+              ? AppColors.appYellow.withValues(alpha: 0.4)
+              : textColor.withValues(alpha: 0.05),
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : surfaceColor, shape: BoxShape.circle),
-            child: Icon(isLocked ? Icons.lock_outline : Icons.lock_open_outlined, color: isLocked ? AppColors.appYellow : hintColor, size: 20),
+            decoration: BoxDecoration(
+              color: isLocked
+                  ? AppColors.appYellow.withValues(alpha: 0.1)
+                  : surfaceColor,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isLocked ? Icons.lock_outline : Icons.lock_open_outlined,
+              color: isLocked ? AppColors.appYellow : hintColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.customName, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  item.customName,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('${item.presetWattage}W • Target: ${item.userAssignedHours}h/day', style: TextStyle(color: hintColor, fontSize: 12)),
+                Text(
+                  '${item.presetWattage}W • Target: ${item.userAssignedHours}h/day',
+                  style: TextStyle(color: hintColor, fontSize: 12),
+                ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${item.adjustedHours.toStringAsFixed(1)} hrs', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
-              const Text('scaled', style: TextStyle(color: Colors.white38, fontSize: 10)),
+              Text(
+                '${item.adjustedHours.toStringAsFixed(1)} hrs',
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Text(
+                'scaled',
+                style: TextStyle(color: Colors.white38, fontSize: 10),
+              ),
             ],
           ),
           const SizedBox(width: 10),
           IconButton(
-            icon: Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? AppColors.appYellow : hintColor, size: 22),
-            onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(item.id, isLocked),
+            icon: Icon(
+              isLocked ? Icons.lock : Icons.lock_open,
+              color: isLocked ? AppColors.appYellow : hintColor,
+              size: 22,
+            ),
+            onPressed: () => ref
+                .read(inventoryProvider.notifier)
+                .toggleLock(item.id, isLocked),
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline, color: hintColor, size: 20),
+            onPressed: () =>
+                ref.read(inventoryProvider.notifier).removeAppliance(item.id),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickAction(IconData icon, String label, {bool isPrimary = false, required Color surfaceColor, required Color hintColor, required VoidCallback onTap}) {
+  Widget _buildQuickAction(
+    IconData icon,
+    String label, {
+    bool isPrimary = false,
+    required Color surfaceColor,
+    required Color hintColor,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           Container(
-            height: 60, width: 60,
-            decoration: BoxDecoration(color: isPrimary ? Colors.orange.shade600 : surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
-            child: Icon(icon, color: isPrimary ? Colors.white : hintColor, size: 28),
+            height: 60,
+            width: 60,
+            decoration: BoxDecoration(
+              color: isPrimary
+                  ? AppColors.appYellow
+                  : surfaceColor.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              color: isPrimary ? Colors.black87 : hintColor,
+              size: 28,
+            ),
           ),
           const SizedBox(height: 8),
           Text(label, style: TextStyle(color: hintColor, fontSize: 12)),

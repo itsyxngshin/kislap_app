@@ -15,7 +15,7 @@ class ReportsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
-  double _activeRate = 12.35; // Default to regional rate
+  double _activeRate = 11.08;
   bool _isLoadingSettings = true;
   List<double> _simulatedDailyUsage = [];
 
@@ -50,6 +50,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final hintColor = textColor.withValues(alpha: 0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
+    // Reactively watch inventory
     final devices = ref.watch(inventoryProvider);
 
     double dailyKwhSum = 0;
@@ -57,7 +58,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     String highestDeviceName = 'None';
 
     for (var device in devices) {
-      final double dailyKwh = (device.presetWattage / 1000) * device.adjustedHours;
+      final double dailyKwh =
+          (device.presetWattage / 1000) * device.adjustedHours;
       dailyKwhSum += dailyKwh;
 
       if (dailyKwh > highestDeviceKwh) {
@@ -70,6 +72,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final double monthlyCost = monthlyKwh * _activeRate;
     final double avgDailyCost = dailyKwhSum * _activeRate;
 
+    // Simulate 7 days of slightly varying usage for the prototype chart
     if (_simulatedDailyUsage.isEmpty && dailyKwhSum > 0) {
       final random = Random();
       _simulatedDailyUsage = List.generate(7, (index) {
@@ -83,79 +86,147 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+          padding: const EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: 120,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Monthly Report\n(Buwanang Ulat)',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2),
+                'Monthly Report',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
-              const SizedBox(height: 25),
+              const SizedBox(height: 20),
 
               // Top Stats Grid
               Row(
                 children: [
-                  Expanded(child: _buildStatCard('Consumption\n(Konsumo)', '${monthlyKwh.toStringAsFixed(1)} kWh', surfaceColor, hintColor, textColor)),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Consumption',
+                      '${monthlyKwh.toStringAsFixed(1)} kWh',
+                      surfaceColor,
+                      hintColor,
+                      textColor,
+                    ),
+                  ),
                   const SizedBox(width: 15),
-                  Expanded(child: _buildStatCard('Est. Bill\n(Est. na Bayarin)', '₱${monthlyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor, isHighlight: true)),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Est. bill',
+                      '₱${monthlyCost.toStringAsFixed(0)}',
+                      surfaceColor,
+                      hintColor,
+                      textColor,
+                      isHighlight: true,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 15),
               Row(
                 children: [
-                  Expanded(child: _buildStatCard('Avg Daily Cost\n(Gastos Kada Araw)', '₱${avgDailyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor)),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Avg daily cost',
+                      '₱${avgDailyCost.toStringAsFixed(0)}',
+                      surfaceColor,
+                      hintColor,
+                      textColor,
+                    ),
+                  ),
                   const SizedBox(width: 15),
-                  Expanded(child: _buildStatCard('Top Device\n(Pinakamalakas)', highestDeviceName, surfaceColor, hintColor, textColor, isTextSmall: true)),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Top device',
+                      highestDeviceName,
+                      surfaceColor,
+                      hintColor,
+                      textColor,
+                      isTextSmall: true,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 30),
 
-              // Premium Tricolor Bar Chart
+              // The Bar Chart
               if (_simulatedDailyUsage.isNotEmpty && monthlyKwh > 0)
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.6),
+                    color: surfaceColor.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: textColor.withValues(alpha: 0.05)),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('CONSUMPTION TREND (TAKBO NG KONSUMO)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                      Text(
+                        'Consumption trend (Simulated)',
+                        style: TextStyle(color: hintColor, fontSize: 13),
+                      ),
                       const SizedBox(height: 30),
                       SizedBox(
-                        height: 220,
+                        height: 200,
                         child: BarChart(
                           BarChartData(
                             alignment: BarChartAlignment.spaceAround,
-                            maxY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
+                            maxY: (_simulatedDailyUsage.reduce(max) * 1.2)
+                                .ceilToDouble(),
                             titlesData: FlTitlesData(
                               bottomTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   getTitlesWidget: (value, meta) {
-                                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                                    const days = [
+                                      'Mon',
+                                      'Tue',
+                                      'Wed',
+                                      'Thu',
+                                      'Fri',
+                                      'Sat',
+                                      'Sun',
+                                    ];
                                     if (value >= 0 && value < 7) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8.0),
-                                        child: Text(days[value.toInt()], style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                                      return Text(
+                                        days[value.toInt()],
+                                        style: TextStyle(
+                                          color: hintColor,
+                                          fontSize: 10,
+                                        ),
                                       );
                                     }
                                     return const Text('');
                                   },
-                                  reservedSize: 30,
+                                  reservedSize: 22,
                                 ),
                               ),
-                              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              leftTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
                             ),
                             gridData: const FlGridData(show: false),
                             borderData: FlBorderData(show: false),
-                            barGroups: List.generate(7, (index) => _buildPremiumBarGroup(index, _simulatedDailyUsage[index])),
+                            barGroups: List.generate(
+                              7,
+                              (index) => _buildBarGroup(
+                                index,
+                                _simulatedDailyUsage[index],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -169,19 +240,26 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color surfaceColor, Color hintColor, Color textColor, {bool isHighlight = false, bool isTextSmall = false}) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    Color surfaceColor,
+    Color hintColor,
+    Color textColor, {
+    bool isHighlight = false,
+    bool isTextSmall = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isHighlight ? AppColors.appYellow.withValues(alpha: 0.3) : Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(color: hintColor, fontSize: 11, height: 1.3)),
-          const SizedBox(height: 12),
+          Text(title, style: TextStyle(color: hintColor, fontSize: 12)),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
@@ -196,24 +274,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  BarChartGroupData _buildPremiumBarGroup(int x, double y) {
+  BarChartGroupData _buildBarGroup(int x, double y) {
     return BarChartGroupData(
       x: x,
       barRods: [
         BarChartRodData(
           toY: y,
-          width: 16,
-          gradient: const LinearGradient(
-            colors: [Colors.greenAccent, AppColors.appYellow, AppColors.adminRed],
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-          ),
-          borderRadius: BorderRadius.circular(6),
-          backDrawRodData: BackgroundBarChartRodData(
-            show: true,
-            toY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
-            color: Colors.black26,
-          ),
+          color: AppColors.appYellow,
+          width: 14,
+          borderRadius: BorderRadius.circular(4),
         ),
       ],
     );
