@@ -31,7 +31,7 @@ class OnboardingScreen extends StatelessWidget {
                         children: [
                           const Spacer(flex: 2),
 
-                          // Uses the standalone lightning bolt icon asset
+                          // Your official standalone lightning bolt icon
                           Image.asset(
                             'assets/images/logo_icon.png',
                             height: 110,

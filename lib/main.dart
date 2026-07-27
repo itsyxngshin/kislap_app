@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // <-- 1. Import Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
-import 'screens/auth/onboarding_screen.dart';
 import 'services/sync_service.dart';
-import 'screens/auth/splash_screen.dart';
+import 'screens/auth/splash_screen.dart'; // Handles initial branding & auth routing
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
@@ -21,7 +20,6 @@ void main() async {
   SyncService.syncCatalogDown();
 
   runApp(
-    // 2. Wrap the entire app in a ProviderScope
     const ProviderScope(child: KislapApp()),
   );
 }
@@ -40,6 +38,7 @@ class KislapApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: currentMode,
+          // Correctly set to SplashScreen as the initial landing screen
           home: const SplashScreen(),
         );
       },
