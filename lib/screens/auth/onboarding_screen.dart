@@ -1,41 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 import 'guest_setup_screen.dart';
-import '../dashboard/dashboard_shell.dart'; // Added import for routing
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
-
-  @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends State<OnboardingScreen> {
-
-  @override
-  void initState() {
-    super.initState();
-    _checkExistingSession();
-  }
-
-  // Instantly check for an active cached session upon app launch
-  void _checkExistingSession() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null && mounted) {
-        // User is already logged in, redirect directly to the Dashboard
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardShell()),
-          (route) => false,
-        );
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +17,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: Container(
         decoration: AppTheme.globalBackground(context),
         child: SafeArea(
-          // LayoutBuilder + SingleChildScrollView + IntrinsicHeight is the ultimate fix for bottom overflow
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -61,9 +31,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         children: [
                           const Spacer(flex: 2),
 
-                          // Tech-Inspired Hero Graphic
-                          _buildHeroGraphic(context),
-                          const SizedBox(height: 40),
+                          // Uses the standalone lightning bolt icon asset
+                          Image.asset(
+                            'assets/images/logo_icon.png',
+                            height: 110,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(height: 30),
 
                           // Typography / Branding
                           Text(
@@ -127,7 +101,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                           const SizedBox(height: 30),
 
-                          // Tertiary Action: Guest Mode (Safely positioned at the bottom)
+                          // Tertiary Action: Guest Mode
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -166,50 +140,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  // A sleek, tech-forward orb graphic to serve as the onboarding focal point
-  Widget _buildHeroGraphic(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Outer glowing orbital ring
-        Container(
-          width: 140,
-          height: 140,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.1), width: 2),
-          ),
-        ),
-        // Inner dashed tech ring
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3), width: 1),
-          ),
-        ),
-        // Solid vibrant core
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.appYellow,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.appYellow.withValues(alpha: 0.4),
-                blurRadius: 20,
-                spreadRadius: 5,
-              )
-            ],
-          ),
-          child: const Icon(Icons.bolt, color: Colors.black87, size: 35),
-        ),
-      ],
     );
   }
 }

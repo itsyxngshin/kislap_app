@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'services/sync_service.dart';
+import 'screens/auth/splash_screen.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
@@ -39,7 +40,7 @@ class KislapApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: currentMode,
-          home: const OnboardingScreen(),
+          home: const SplashScreen(),
         );
       },
     );
