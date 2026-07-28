@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../services/database_helper.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 import 'guest_setup_screen.dart';
+import '../dashboard/dashboard_shell.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -31,7 +33,6 @@ class OnboardingScreen extends StatelessWidget {
                         children: [
                           const Spacer(flex: 2),
 
-                          // Your official standalone lightning bolt icon
                           Image.asset(
                             'assets/images/logo_icon.png',
                             height: 110,
@@ -39,7 +40,6 @@ class OnboardingScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 30),
 
-                          // Typography / Branding
                           Text(
                             'Kislap',
                             style: TextStyle(
@@ -115,8 +115,27 @@ class OnboardingScreen extends StatelessWidget {
                           const SizedBox(height: 15),
 
                           TextButton.icon(
-                            onPressed: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestSetupScreen()));
+                            onPressed: () async {
+                              // Check if Guest setup was previously saved
+                              try {
+                                final db = await DatabaseHelper.instance.database;
+                                final settings = await db.query('user_settings', limit: 1);
+                                if (settings.isNotEmpty) {
+                                  final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
+                                  if (budget > 0 && context.mounted) {
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const DashboardShell()),
+                                      (route) => false,
+                                    );
+                                    return;
+                                  }
+                                }
+                              } catch (_) {}
+
+                              if (context.mounted) {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestSetupScreen()));
+                              }
                             },
                             icon: Icon(Icons.rocket_launch_outlined, color: Colors.greenAccent.withValues(alpha: 0.8), size: 20),
                             label: Text(

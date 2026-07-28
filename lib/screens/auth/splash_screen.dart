@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../../services/database_helper.dart';
 import 'onboarding_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 
@@ -20,7 +21,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
 
-    // Smooth fade-in animation for the logo
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -38,17 +38,48 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 
   Future<void> _routeUser() async {
-    // Wait for at least 2.5 seconds to show off the branding, plus network check time
-    await Future.delayed(const Duration(milliseconds: 2500));
+    // Show branding splash animation
+    await Future.delayed(const Duration(milliseconds: 2000));
 
     if (!mounted) return;
 
+    // 1. Check if user is logged in via Supabase Cloud
     final session = Supabase.instance.client.auth.currentSession;
-
     if (session != null) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
-    } else {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const OnboardingScreen()));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardShell()),
+      );
+      return;
+    }
+
+    // 2. THE FIX: Check if Guest Setup has already been completed in SQLite
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final settings = await db.query('user_settings', limit: 1);
+
+      if (settings.isNotEmpty) {
+        final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
+
+        // If a budget has already been set, auto-login into Guest Dashboard!
+        if (budget > 0) {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardShell()),
+            );
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. If no account AND no guest settings exist, show Onboarding
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
     }
   }
 
@@ -65,7 +96,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               opacity: _fadeAnimation,
               child: Image.asset(
                 'assets/images/logo_stacked.png',
-                width: 200, // Adjust based on your visual preference
+                width: 200,
                 fit: BoxFit.contain,
               ),
             ),
