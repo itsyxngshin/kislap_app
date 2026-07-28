@@ -197,6 +197,27 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(width: 10),
+                              // The Restored Delete Button
+                              Column(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.delete_outline,
+                                      color: hintColor,
+                                      size: 26,
+                                    ),
+                                    onPressed: () {
+                                      // Safely removes the device and recalibrates the budget
+                                      ref.read(inventoryProvider.notifier).removeAppliance(device.id);
+                                    },
+                                  ),
+                                  Text(
+                                    'Remove',
+                                    style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                           Padding(
