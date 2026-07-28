@@ -42,7 +42,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
         _hoursController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please complete all fields.'),
+          content: Text('Please complete all fields. (Kumpletuhin ang form.)'),
           backgroundColor: AppColors.adminRed,
         ),
       );
@@ -68,7 +68,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Device added and schedule optimized!'),
+            content: Text('Device added! (Nailagay na ang gamit!)'),
             backgroundColor: Colors.green,
           ),
         );
@@ -104,8 +104,8 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'Add Appliance',
-            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+            'Add Appliance\n(Magdagdag ng Gamit)',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18, height: 1.2),
           ),
         ),
         body: FutureBuilder<List<Map<String, dynamic>>>(
@@ -120,8 +120,9 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Center(
                 child: Text(
-                  'No appliance presets found.\nPlease sync with the cloud.',
-                  style: TextStyle(color: hintColor),
+                  'No appliance presets found.\nPlease sync with the cloud.\n(Walang nahanap na presets. Mag-sync sa cloud.)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: hintColor, height: 1.5),
                 ),
               );
             }
@@ -154,10 +155,10 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'APPLIANCE TYPE',
+                          'APPLIANCE TYPE (URI NG GAMIT)',
                           style: TextStyle(
                             color: AppColors.appYellow,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.2,
                           ),
@@ -184,8 +185,8 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                             color: hintColor,
                           ),
                           hint: Text(
-                            'Select from catalog...',
-                            style: TextStyle(color: hintColor),
+                            'Select from catalog... (Pumili sa listahan...)',
+                            style: TextStyle(color: hintColor, fontSize: 13),
                           ),
                           value: _selectedPreset,
                           isExpanded: true,
@@ -213,13 +214,13 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                             });
                           },
                         ),
-                        const SizedBox(height: 25),
+                        const SizedBox(height: 30),
 
                         Text(
-                          'CUSTOM IDENTIFIER',
+                          'CUSTOM IDENTIFIER (PANGALAN NG GAMIT)',
                           style: TextStyle(
                             color: AppColors.appYellow,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.2,
                           ),
@@ -230,7 +231,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                           style: TextStyle(color: textColor, fontSize: 16),
                           decoration: InputDecoration(
                             hintText: 'e.g., Master Bedroom AC',
-                            hintStyle: TextStyle(color: hintColor),
+                            hintStyle: TextStyle(color: hintColor, fontSize: 14),
                             filled: true,
                             fillColor: surfaceColor.withValues(alpha: 0.8),
                             border: OutlineInputBorder(
@@ -243,13 +244,13 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 25),
+                        const SizedBox(height: 30),
 
                         Text(
-                          'BASELINE USAGE',
+                          'BASELINE USAGE (ORAS NG PAGGAMIT)',
                           style: TextStyle(
                             color: AppColors.appYellow,
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.2,
                           ),
@@ -266,9 +267,10 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Hours per day',
+                            hintText: 'Hours per day (Oras kada araw)',
                             hintStyle: TextStyle(
                               color: hintColor,
+                              fontSize: 14,
                               fontWeight: FontWeight.normal,
                             ),
                             filled: true,
@@ -314,9 +316,9 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                               ),
                             )
                           : const Text(
-                              'Add to Inventory',
+                              'Add to Inventory (Idagdag)',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.5,
                               ),

@@ -51,6 +51,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
+  // Generates the current month string dynamically
+  String _getCurrentBillingMonth() {
+    final now = DateTime.now();
+    final monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    final monthsPh = ['Enero', 'Pebrero', 'Marso', 'Abril', 'Mayo', 'Hunyo', 'Hulyo', 'Agosto', 'Setyembre', 'Oktubre', 'Nobyembre', 'Disyembre'];
+
+    return '${monthsEn[now.month - 1]} ${now.year} (${monthsPh[now.month - 1]})';
+  }
+
   Future<void> _loadInitialData() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -114,7 +123,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       final db = await DatabaseHelper.instance.database;
 
-      // Robust insert with replace to ensure guest mode and new users save correctly
       await db.insert(
         'user_settings',
         {
@@ -361,7 +369,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(height: 35),
 
-              // 2. DYNAMIC PAST MONTH PROJECTION (New Feature)
+              // 2. DYNAMIC PAST MONTH PROJECTION
               if (_periods.isNotEmpty && optimizedMonthlyKwh > 0) ...[
                 Text('PREVIOUS RATE PROJECTION\n(PROYEKSYON BASE SA NAKARAAN)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold, height: 1.4)),
                 const SizedBox(height: 10),
@@ -420,9 +428,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    Text('Current Tariff Rate (Kasalukuyang Halaga)', style: TextStyle(color: hintColor, fontSize: 12)),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
+
+                    // --- DYNAMIC BILLING MONTH INDICATOR FOR TARIFF RATE ---
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.appYellow.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_today_outlined, color: AppColors.appYellow, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Active Rate for ${_getCurrentBillingMonth()}\n(Halaga para sa buwang ito)',
+                              style: const TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _tariffController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
