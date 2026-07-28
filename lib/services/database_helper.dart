@@ -23,18 +23,18 @@ class DatabaseHelper {
       db = await factory.openDatabase(
         'kislap_web.db',
         options: OpenDatabaseOptions(
-          version: 2, // <-- BUMPED TO VERSION 2
+          version: 3, // <-- BUMPED TO VERSION 3 to force the schema update
           onCreate: _onCreate,
-          onUpgrade: _onUpgrade, // <-- ADDED UPGRADE PATH
+          onUpgrade: _onUpgrade,
         ),
       );
     } else {
       String path = join(await getDatabasesPath(), 'kislap.db');
       db = await openDatabase(
         path,
-        version: 2, // <-- BUMPED TO VERSION 2
+        version: 3, // <-- BUMPED TO VERSION 3
         onCreate: _onCreate,
-        onUpgrade: _onUpgrade, // <-- ADDED UPGRADE PATH
+        onUpgrade: _onUpgrade,
       );
     }
 
@@ -64,11 +64,13 @@ class DatabaseHelper {
       )
     ''');
 
+    // FIXED: Renamed to user_appliances and added preset_wattage to match the provider
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS user_inventory (
+      CREATE TABLE IF NOT EXISTS user_appliances (
         id TEXT PRIMARY KEY,
         preset_id INTEGER,
         custom_name TEXT NOT NULL,
+        preset_wattage REAL NOT NULL,
         user_assigned_hours REAL NOT NULL,
         adjusted_hours REAL NOT NULL,
         is_locked INTEGER NOT NULL DEFAULT 0
@@ -87,7 +89,7 @@ class DatabaseHelper {
     ''');
   }
 
-  // AUTOMATIC MIGRATION: Runs for existing users transitioning from V1 to V2
+  // AUTOMATIC MIGRATION: Runs for existing users transitioning through versions
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // 1. Delete the outdated presets table
@@ -105,6 +107,25 @@ class DatabaseHelper {
 
       // 3. Inject the highly accurate client data
       await _seedPresets(db);
+    }
+
+    // THE NEW MIGRATION FIX
+    if (oldVersion < 3) {
+      // Clear out the mismatched table
+      await db.execute('DROP TABLE IF EXISTS user_inventory');
+
+      // Create the correct table format for the inventory provider
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_appliances (
+          id TEXT PRIMARY KEY,
+          preset_id INTEGER,
+          custom_name TEXT NOT NULL,
+          preset_wattage REAL NOT NULL,
+          user_assigned_hours REAL NOT NULL,
+          adjusted_hours REAL NOT NULL,
+          is_locked INTEGER NOT NULL DEFAULT 0
+        )
+      ''');
     }
   }
 
