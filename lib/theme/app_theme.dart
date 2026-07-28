@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
   // A dynamic method to get the correct gradient based on the current theme
   static BoxDecoration globalBackground(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topCenter,
@@ -19,10 +20,13 @@ class AppTheme {
 
   // --- DARK THEME (Your existing Kislap aesthetic) ---
   static ThemeData get darkTheme {
+    final baseTextTheme = ThemeData.dark().textTheme;
+
     return ThemeData(
       brightness: Brightness.dark,
       primaryColor: AppColors.appYellow,
       scaffoldBackgroundColor: Colors.transparent, // Transparent to show the gradient
+      textTheme: GoogleFonts.spaceGroteskTextTheme(baseTextTheme), // Global Space Grotesk
       colorScheme: const ColorScheme.dark(
         primary: AppColors.appYellow,
         surface: Color(0xFF1E293B), // Card background
@@ -40,10 +44,13 @@ class AppTheme {
 
   // --- LIGHT THEME ---
   static ThemeData get lightTheme {
+    final baseTextTheme = ThemeData.light().textTheme;
+
     return ThemeData(
       brightness: Brightness.light,
       primaryColor: AppColors.appYellow,
       scaffoldBackgroundColor: Colors.transparent, // Transparent to show the gradient
+      textTheme: GoogleFonts.spaceGroteskTextTheme(baseTextTheme), // Global Space Grotesk
       colorScheme: const ColorScheme.light(
         primary: AppColors.appYellow,
         surface: Colors.white, // Card background
