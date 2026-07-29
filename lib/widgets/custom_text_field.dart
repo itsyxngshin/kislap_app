@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
-class CustomTextField extends StatelessWidget {
+class CustomTextField extends StatefulWidget {
   final String hint;
   final IconData icon;
   final bool isPassword;
-  final TextEditingController? controller; // <-- Added this
+  final TextEditingController? controller;
   final TextInputType? keyboardType;
 
   const CustomTextField({
@@ -13,30 +13,55 @@ class CustomTextField extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.isPassword = false,
-    this.controller, // <-- Added this
+    this.controller,
     this.keyboardType,
   });
 
   @override
+  State<CustomTextField> createState() => _CustomTextFieldState();
+}
+
+class _CustomTextFieldState extends State<CustomTextField> {
+  // This state variable tracks if the text is hidden or visible
+  late bool _obscureText;
+
+  @override
+  void initState() {
+    super.initState();
+    // Only obscure the text initially if the widget is flagged as a password field
+    _obscureText = widget.isPassword;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextField(
-      obscureText: _obscurePassword,
-      controller: controller, // <-- Added this
-      obscureText: isPassword,
-      keyboardType: keyboardType,
+      controller: widget.controller,
+      obscureText: _obscureText, // Only ONE declaration here
+      keyboardType: widget.keyboardType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
-        hintText: hint,
+        hintText: widget.hint,
         hintStyle: const TextStyle(color: AppColors.textHintColor, fontSize: 14),
         filled: true,
         fillColor: AppColors.inputBackground,
-        prefixIcon: Icon(icon, color: AppColors.textHintColor, size: 20),
-        suffixIcon: isPassword ? const Icon(Icons.visibility_off, color: AppColors.textHintColor, size: 20,
-          onPressed: () {
+        prefixIcon: Icon(widget.icon, color: AppColors.textHintColor, size: 20),
+
+        // Properly implements an IconButton to toggle the state
+        suffixIcon: widget.isPassword
+            ? IconButton(
+                icon: Icon(
+                  _obscureText ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.textHintColor,
+                  size: 20,
+                ),
+                onPressed: () {
                   setState(() {
-                    _obscurePassword = !_obscurePassword;
+                    _obscureText = !_obscureText;
                   });
-                }) : null,
+                },
+              )
+            : null,
+
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
