@@ -1,33 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../services/database_helper.dart';
+import '../../providers/settings_provider.dart';
 import '../dashboard/dashboard_shell.dart';
 
-class GuestSetupScreen extends StatefulWidget {
+class GuestSetupScreen extends ConsumerStatefulWidget {
   const GuestSetupScreen({super.key});
 
   @override
-  State<GuestSetupScreen> createState() => _GuestSetupScreenState();
+  ConsumerState<GuestSetupScreen> createState() => _GuestSetupScreenState();
 }
 
-class _GuestSetupScreenState extends State<GuestSetupScreen> {
+class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
 
   final TextEditingController _budgetController = TextEditingController();
-  final TextEditingController _tariffController = TextEditingController(text: '12.35'); // Default regional rate
+  final TextEditingController _tariffController = TextEditingController(text: '12.35');
   String _householdSize = 'Small';
 
-  // Generates the current month string dynamically
-  String _getCurrentBillingMonth() {
+  String _getCurrentBillingMonth(bool isPh) {
     final now = DateTime.now();
     final monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     final monthsPh = ['Enero', 'Pebrero', 'Marso', 'Abril', 'Mayo', 'Hunyo', 'Hulyo', 'Agosto', 'Setyembre', 'Oktubre', 'Nobyembre', 'Disyembre'];
 
-    return '${monthsEn[now.month - 1]} ${now.year} (${monthsPh[now.month - 1]})';
+    return isPh
+        ? '${monthsPh[now.month - 1]} ${now.year}'
+        : '${monthsEn[now.month - 1]} ${now.year}';
   }
 
   @override
@@ -37,14 +40,18 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
     super.dispose();
   }
 
-  bool _validateCurrentStep() {
+  bool _validateCurrentStep(bool isPh) {
     if (_currentStep == 0) {
       final budget = double.tryParse(_budgetController.text) ?? 0.0;
       if (budget <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid monthly budget limit.\n(Mangyaring maglagay ng wastong budget.)'),
-            backgroundColor: AppColors.adminRed
+          SnackBar(
+            content: Text(
+              isPh
+                ? 'Mangyaring maglagay ng wastong limitasyon sa budget.'
+                : 'Please enter a valid monthly budget limit.'
+            ),
+            backgroundColor: AppColors.adminRed,
           ),
         );
         return false;
@@ -62,8 +69,6 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
     try {
       final db = await DatabaseHelper.instance.database;
 
-      // THE FIX: Uses raw insert with replace conflict resolution
-      // This guarantees the settings save even if the table was previously empty.
       await db.insert(
         'user_settings',
         {
@@ -71,13 +76,13 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
           'monthly_budget': budget,
           'tariff_rate': tariff,
           'household_size': _householdSize,
+          'language': ref.read(settingsProvider).language,
+          'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
       if (mounted) {
-        // Pushing to DashboardShell triggers a fresh initialization
-        // This ensures the HomeScreen reads the newly saved SQLite row immediately
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const DashboardShell()),
@@ -98,6 +103,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final surfaceColor = Theme.of(context).colorScheme.surface;
+    final isPh = ref.watch(settingsProvider).language == 'ph';
 
     return Container(
       decoration: AppTheme.globalBackground(context),
@@ -110,14 +116,20 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
-            'Guest Setup\n(Setup ng Bisita)',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.2)
+          title: Text(
+            isPh ? 'Setup ng Bisita' : 'Guest Setup',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
           ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: _buildLanguageToggle(ref, isPh),
+            ),
+          ],
         ),
         body: Column(
           children: [
-            // DYNAMIC BILLING MONTH BADGE
+            // Dynamic Billing Month Badge
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
               child: Container(
@@ -136,12 +148,12 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'PRESENT BILLING MONTH',
-                            style: TextStyle(color: AppColors.appYellow, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)
+                          Text(
+                            isPh ? 'KASALUKUYANG BUWAN NG BILL' : 'PRESENT BILLING MONTH',
+                            style: const TextStyle(color: AppColors.appYellow, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)
                           ),
                           Text(
-                            _getCurrentBillingMonth(),
+                            _getCurrentBillingMonth(isPh),
                             style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -163,7 +175,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                   currentStep: _currentStep,
                   elevation: 0,
                   onStepContinue: () {
-                    if (_validateCurrentStep()) {
+                    if (_validateCurrentStep(isPh)) {
                       if (_currentStep < 1) {
                         setState(() => _currentStep += 1);
                       } else {
@@ -197,7 +209,9 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                               child: _isLoading
                                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                   : Text(
-                                      isLastStep ? 'Enter Dashboard' : 'Continue',
+                                      isLastStep
+                                        ? (isPh ? 'Pumasok sa Dashboard' : 'Enter Dashboard')
+                                        : (isPh ? 'Magpatuloy' : 'Continue'),
                                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)
                                     ),
                             ),
@@ -206,7 +220,10 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                             const SizedBox(width: 12),
                             TextButton(
                               onPressed: _isLoading ? null : details.onStepCancel,
-                              child: const Text('Back', style: TextStyle(color: AppColors.textHintColor, fontSize: 16)),
+                              child: Text(
+                                isPh ? 'Bumalik' : 'Back',
+                                style: const TextStyle(color: AppColors.textHintColor, fontSize: 16)
+                              ),
                             ),
                           ]
                         ],
@@ -215,8 +232,14 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                   },
                   steps: [
                     Step(
-                      title: const Text('Financial Baseline\n(Batayang Pinansyal)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.2)),
-                      subtitle: const Text('Optimization limits (Limitasyon sa budget)', style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+                      title: Text(
+                        isPh ? 'Batayang Pinansyal' : 'Financial Baseline',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                      ),
+                      subtitle: Text(
+                        isPh ? 'Limitasyon sa budget' : 'Optimization limits',
+                        style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)
+                      ),
                       isActive: _currentStep >= 0,
                       state: _currentStep > 0 ? StepState.complete : StepState.indexed,
                       content: Column(
@@ -233,9 +256,15 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('TARGET BUDGET', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
+                                Text(
+                                  isPh ? 'TARGET NA BUDGET' : 'TARGET BUDGET',
+                                  style: const TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)
+                                ),
                                 const SizedBox(height: 4),
-                                const Text('How much are you willing to spend this month?\n(Magkano ang limitasyon mo ngayong buwan?)', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                                Text(
+                                  isPh ? 'Magkano ang limitasyon mo ngayong buwan?' : 'How much are you willing to spend this month?',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                                ),
                                 const SizedBox(height: 16),
                                 CustomTextField(
                                   controller: _budgetController,
@@ -257,9 +286,15 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('UTILITY RATE (Halaga ng Kuryente)', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
+                                Text(
+                                  isPh ? 'HALAGA NG KURYENTE (UTILITY RATE)' : 'UTILITY RATE',
+                                  style: const TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)
+                                ),
                                 const SizedBox(height: 4),
-                                const Text('Check your electric bill for the exact ₱/kWh rate.\n(Tingnan ang iyong bill para sa eksaktong ₱/kWh.)', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                                Text(
+                                  isPh ? 'Tingnan ang electric bill para sa eksaktong ₱/kWh.' : 'Check your electric bill for the exact ₱/kWh rate.',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                                ),
                                 const SizedBox(height: 16),
                                 CustomTextField(
                                   controller: _tariffController,
@@ -274,23 +309,41 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                       ),
                     ),
                     Step(
-                      title: const Text('Household Class\n(Uri ng Bahayan)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.2)),
-                      subtitle: const Text('Sets the kVA scale (Antas ng paggamit)', style: TextStyle(color: AppColors.textHintColor, fontSize: 12)),
+                      title: Text(
+                        isPh ? 'Uri ng Bahayan' : 'Household Class',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                      ),
+                      subtitle: Text(
+                        isPh ? 'Antas ng paggamit (kVA scale)' : 'Sets the kVA scale',
+                        style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)
+                      ),
                       isActive: _currentStep >= 1,
                       content: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 16),
-                          const Text('Select your setup size to enforce safe power distribution limits.\n(Piliin ang uri ng bahay upang matukoy ang limitasyon sa kuryente.)', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                          Text(
+                            isPh ? 'Piliin ang uri ng bahay upang matukoy ang limitasyon sa kuryente.' : 'Select your setup size to enforce safe power distribution limits.',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                          ),
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
                             child: Column(
                               children: [
-                                _buildRadioOption('Small (0 - 5 kVA)', 'Basic appliances only. Fans, TV, fridge, and lights.\n(Basic na gamit lamang: Fan, TV, ilaw, atbp.)'),
-                                _buildRadioOption('Medium (6 - 15 kVA)', 'Standard home. 1-2 air conditioners, fridge, etc.\n(May 1-2 aircon, ref, atbp.)'),
-                                _buildRadioOption('Large (16 - 25 kVA)', 'Heavy usage. Multiple ACs, large appliances.\n(Malakas na konsumo: Maraming aircon at appliances.)'),
+                                _buildRadioOption(
+                                  'Small (0 - 5 kVA)',
+                                  isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, and lights.'
+                                ),
+                                _buildRadioOption(
+                                  'Medium (6 - 15 kVA)',
+                                  isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, fridge, etc.'
+                                ),
+                                _buildRadioOption(
+                                  'Large (16 - 25 kVA)',
+                                  isPh ? 'Malakas na konsumo. Maraming aircon at malaking gamit.' : 'Heavy usage. Multiple ACs, large appliances.'
+                                ),
                               ],
                             ),
                           ),
@@ -302,6 +355,45 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageToggle(WidgetRef ref, bool isPh) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildLangOption(ref, 'EN', 'en', !isPh),
+          _buildLangOption(ref, 'PH', 'ph', isPh),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected) {
+    return GestureDetector(
+      onTap: () => ref.read(settingsProvider.notifier).setLanguage(langCode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.appYellow : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black87 : Colors.white70,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -348,7 +440,7 @@ class _GuestSetupScreenState extends State<GuestSetupScreen> {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
+                    style: const TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
                   ),
                 ],
               ),

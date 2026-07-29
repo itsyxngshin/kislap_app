@@ -5,6 +5,7 @@ import 'dart:math';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
+import '../../providers/settings_provider.dart'; // <-- Added Provider
 import '../../services/database_helper.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
@@ -15,7 +16,7 @@ class ReportsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
-  double _activeRate = 12.35; // Default to regional rate
+  double _activeRate = 12.35;
   bool _isLoadingSettings = true;
   List<double> _simulatedDailyUsage = [];
 
@@ -38,11 +39,26 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     setState(() => _isLoadingSettings = false);
   }
 
+  // --- UI HELPER: Time Formatter ---
+  String _formatTime(double totalHours) {
+    final int hours = totalHours.floor();
+    final int minutes = ((totalHours - hours) * 60).round();
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+    if (hours > 0) return '${hours}h';
+    return '${minutes}m';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isPh = ref.watch(settingsProvider).language == 'ph'; // Live language check
+
     if (_isLoadingSettings) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.appYellow),
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: AppTheme.globalBackground(context),
+          child: const Center(child: CircularProgressIndicator(color: AppColors.appYellow)),
+        ),
       );
     }
 
@@ -54,7 +70,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
     double dailyKwhSum = 0;
     double highestDeviceKwh = 0;
-    String highestDeviceName = 'None';
+    String highestDeviceName = isPh ? 'Wala' : 'None';
 
     for (var device in devices) {
       final double dailyKwh = (device.presetWattage / 1000) * device.adjustedHours;
@@ -78,91 +94,129 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       });
     }
 
-    return Container(
-      decoration: AppTheme.globalBackground(context),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Monthly Report\n(Buwanang Ulat)',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2),
-              ),
-              const SizedBox(height: 25),
+    return Scaffold( // FIX: Wrapped in Scaffold
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: AppTheme.globalBackground(context),
+        child: SafeArea(
+          bottom: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isPh ? 'Buwanang Ulat' : 'Monthly Report',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2),
+                ),
+                const SizedBox(height: 25),
 
-              // Top Stats Grid
-              Row(
-                children: [
-                  Expanded(child: _buildStatCard('Consumption\n(Konsumo)', '${monthlyKwh.toStringAsFixed(1)} kWh', surfaceColor, hintColor, textColor)),
-                  const SizedBox(width: 15),
-                  Expanded(child: _buildStatCard('Est. Bill\n(Est. na Bayarin)', '₱${monthlyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor, isHighlight: true)),
-                ],
-              ),
-              const SizedBox(height: 15),
-              Row(
-                children: [
-                  Expanded(child: _buildStatCard('Avg Daily Cost\n(Gastos Kada Araw)', '₱${avgDailyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor)),
-                  const SizedBox(width: 15),
-                  Expanded(child: _buildStatCard('Top Device\n(Pinakamalakas)', highestDeviceName, surfaceColor, hintColor, textColor, isTextSmall: true)),
-                ],
-              ),
-              const SizedBox(height: 30),
+                // Top Stats Grid
+                Row(
+                  children: [
+                    Expanded(child: _buildStatCard(isPh ? 'Konsumo' : 'Consumption', '${monthlyKwh.toStringAsFixed(1)} kWh', surfaceColor, hintColor, textColor)),
+                    const SizedBox(width: 15),
+                    Expanded(child: _buildStatCard(isPh ? 'Est. na Bayarin' : 'Est. Bill', '₱${monthlyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor, isHighlight: true)),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    Expanded(child: _buildStatCard(isPh ? 'Gastos Kada Araw' : 'Avg Daily Cost', '₱${avgDailyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor)),
+                    const SizedBox(width: 15),
+                    Expanded(child: _buildStatCard(isPh ? 'Pinakamalakas' : 'Top Device', highestDeviceName, surfaceColor, hintColor, textColor, isTextSmall: true)),
+                  ],
+                ),
+                const SizedBox(height: 30),
 
-              // Premium Tricolor Bar Chart
-              if (_simulatedDailyUsage.isNotEmpty && monthlyKwh > 0)
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: textColor.withValues(alpha: 0.05)),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('CONSUMPTION TREND (TAKBO NG KONSUMO)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        height: 220,
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
-                            titlesData: FlTitlesData(
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                                    if (value >= 0 && value < 7) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8.0),
-                                        child: Text(days[value.toInt()], style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold)),
-                                      );
-                                    }
-                                    return const Text('');
-                                  },
-                                  reservedSize: 30,
+                // Premium Tricolor Bar Chart
+                if (_simulatedDailyUsage.isNotEmpty && monthlyKwh > 0)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: surfaceColor.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(isPh ? 'TAKBO NG KONSUMO' : 'CONSUMPTION TREND', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 30),
+                        SizedBox(
+                          height: 220,
+                          child: BarChart(
+                            BarChartData(
+                              alignment: BarChartAlignment.spaceAround,
+                              maxY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
+                              titlesData: FlTitlesData(
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    getTitlesWidget: (value, meta) {
+                                      final daysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                                      final daysPh = ['Lun', 'Mar', 'Miy', 'Huw', 'Biy', 'Sab', 'Lin'];
+                                      if (value >= 0 && value < 7) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 8.0),
+                                          child: Text(isPh ? daysPh[value.toInt()] : daysEn[value.toInt()], style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                                        );
+                                      }
+                                      return const Text('');
+                                    },
+                                    reservedSize: 30,
+                                  ),
                                 ),
+                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                               ),
-                              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              gridData: const FlGridData(show: false),
+                              borderData: FlBorderData(show: false),
+                              barGroups: List.generate(7, (index) => _buildPremiumBarGroup(index, _simulatedDailyUsage[index])),
                             ),
-                            gridData: const FlGridData(show: false),
-                            borderData: FlBorderData(show: false),
-                            barGroups: List.generate(7, (index) => _buildPremiumBarGroup(index, _simulatedDailyUsage[index])),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+
+                // DataTable Analysis for Detailed Breakdown (Task 7 Requirement)
+                const SizedBox(height: 30),
+                Text(isPh ? 'DETALYENG GASTUSIN' : 'DETAILED BREAKDOWN', style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columnSpacing: 20,
+                      columns: [
+                        DataColumn(label: Text(isPh ? 'Gamit' : 'Item', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text(isPh ? 'Oras' : 'Opt. Hrs', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
+                        DataColumn(label: Text(isPh ? 'Buwanang kWh' : 'Monthly kWh', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
+                      ],
+                      rows: devices.map((device) {
+                        final double monthlyKwh = ((device.presetWattage / 1000) * device.adjustedHours) * 30;
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(device.customName, style: TextStyle(color: textColor))),
+                            DataCell(Text(_formatTime(device.adjustedHours), style: const TextStyle(color: Colors.greenAccent))),
+                            DataCell(Text(monthlyKwh.toStringAsFixed(1), style: TextStyle(color: textColor))),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

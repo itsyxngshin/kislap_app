@@ -19,6 +19,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -45,7 +46,7 @@ class _SignInScreenState extends State<SignInScreen> {
       );
 
       final user = authResponse.user;
-      
+
       if (user != null) {
         // 1. Merge any offline items the user just created into their cloud account
         await SyncService.mergeOfflineDataToCloud(user.id);
@@ -62,14 +63,14 @@ class _SignInScreenState extends State<SignInScreen> {
         if (mounted) {
           if (roleId == 2) {
             Navigator.pushAndRemoveUntil(
-              context, 
-              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()), 
+              context,
+              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
               (route) => false
             );
           } else {
             Navigator.pushAndRemoveUntil(
-              context, 
-              MaterialPageRoute(builder: (_) => const DashboardShell()), 
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardShell()),
               (route) => false
             );
           }
@@ -103,7 +104,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 const SizedBox(height: 20),
                 const Icon(Icons.show_chart_rounded, size: 50, color: AppColors.appYellow),
                 const SizedBox(height: 20),
-                
+
                 const Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 8),
                 const Text('Sign in to keep tracking your usage.', style: TextStyle(color: AppColors.textHintColor, fontSize: 14)),
@@ -117,7 +118,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 const Text('Password', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 8),
                 CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
-                
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(onPressed: () {}, child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13))),
@@ -134,13 +135,13 @@ class _SignInScreenState extends State<SignInScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: _isLoading 
+                    child: _isLoading
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
                       : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 30),
-                
+
                 const Center(child: Text('or continue with', style: TextStyle(color: AppColors.textHintColor, fontSize: 12))),
                 const SizedBox(height: 20),
 

@@ -55,24 +55,25 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     // 2. THE FIX: Check if Guest Setup has already been completed in SQLite
     try {
-      final db = await DatabaseHelper.instance.database;
-      final settings = await db.query('user_settings', limit: 1);
+          final db = await DatabaseHelper.instance.database;
+          final settings = await db.query('user_settings', limit: 1);
 
-      if (settings.isNotEmpty) {
-        final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
+          if (settings.isNotEmpty) {
+            final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
+            final isFirstTime = (settings.first['is_first_time'] as int?) == 1; // Check tutorial status
 
-        // If a budget has already been set, auto-login into Guest Dashboard!
-        if (budget > 0) {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardShell()),
-            );
-            return;
+            if (budget > 0) {
+              if (mounted) {
+                // If they haven't seen the tutorial, send them there. Otherwise, Dashboard.
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => isFirstTime ? const TutorialScreen() : const DashboardShell()),
+                );
+                return;
+              }
+            }
           }
-        }
-      }
-    } catch (_) {}
+        } catch (_) {}
 
     // 3. If no account AND no guest settings exist, show Onboarding
     if (mounted) {

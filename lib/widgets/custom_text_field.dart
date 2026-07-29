@@ -20,6 +20,7 @@ class CustomTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      obscureText: _obscurePassword,
       controller: controller, // <-- Added this
       obscureText: isPassword,
       keyboardType: keyboardType,
@@ -30,7 +31,12 @@ class CustomTextField extends StatelessWidget {
         filled: true,
         fillColor: AppColors.inputBackground,
         prefixIcon: Icon(icon, color: AppColors.textHintColor, size: 20),
-        suffixIcon: isPassword ? const Icon(Icons.visibility_off, color: AppColors.textHintColor, size: 20) : null,
+        suffixIcon: isPassword ? const Icon(Icons.visibility_off, color: AppColors.textHintColor, size: 20,
+          onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                }) : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

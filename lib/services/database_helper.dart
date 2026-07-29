@@ -56,13 +56,16 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE IF NOT EXISTS user_settings (
-        id INTEGER PRIMARY KEY,
-        tariff_rate REAL NOT NULL,
-        monthly_budget REAL NOT NULL,
-        household_size TEXT
-      )
-    ''');
+          CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY,
+            tariff_rate REAL NOT NULL,
+            monthly_budget REAL NOT NULL,
+            household_size TEXT,
+            language TEXT DEFAULT 'en',       -- Task 2: 'en' or 'ph'
+            theme_mode TEXT DEFAULT 'light',  -- Task 4: Default to light mode
+            is_first_time INTEGER DEFAULT 1   -- Task 8: Tutorial trigger
+          )
+        ''');
 
     // FIXED: Renamed to user_appliances and added preset_wattage to match the provider
     await db.execute('''
@@ -127,6 +130,12 @@ class DatabaseHelper {
         )
       ''');
     }
+
+    if (oldVersion < 4) {
+          await db.execute("ALTER TABLE user_settings ADD COLUMN language TEXT DEFAULT 'en'");
+          await db.execute("ALTER TABLE user_settings ADD COLUMN theme_mode TEXT DEFAULT 'light'");
+          await db.execute("ALTER TABLE user_settings ADD COLUMN is_first_time INTEGER DEFAULT 1");
+      }
   }
 
   // Fallback safety check (mainly for Vercel blank slates)

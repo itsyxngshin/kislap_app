@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
+import '../../providers/settings_provider.dart'; // <-- Added Provider
 import '../../services/database_helper.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
@@ -13,7 +14,7 @@ class AnalysisScreen extends ConsumerStatefulWidget {
 }
 
 class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
-  double _activeRate = 12.35; // Default aligned with June 2026 Mainland Rate
+  double _activeRate = 12.35;
   double _targetBudget = 0.0;
   bool _isLoading = true;
 
@@ -36,16 +37,43 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     }
   }
 
+  // --- UI HELPER: Time Formatter ---
+  String _formatTime(double totalHours) {
+    final int hours = totalHours.floor();
+    final int minutes = ((totalHours - hours) * 60).round();
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+    if (hours > 0) return '${hours}h';
+    return '${minutes}m';
+  }
+
+  // --- UI HELPER: Dynamic Appliance Icons ---
+  IconData _getApplianceIcon(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('aircon') || lower.contains('ac')) return Icons.ac_unit;
+    if (lower.contains('fan')) return Icons.mode_fan_off_outlined;
+    if (lower.contains('tv') || lower.contains('television')) return Icons.tv;
+    if (lower.contains('fridge') || lower.contains('refrigerator')) return Icons.kitchen;
+    if (lower.contains('light') || lower.contains('bulb')) return Icons.lightbulb_outline;
+    if (lower.contains('wash')) return Icons.local_laundry_service_outlined;
+    if (lower.contains('laptop') || lower.contains('computer')) return Icons.computer;
+    return Icons.electrical_services;
+  }
+
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withValues(alpha: 0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
+    final isPh = ref.watch(settingsProvider).language == 'ph'; // Live language check
+
     if (_isLoading) {
-      return Container(
-        decoration: AppTheme.globalBackground(context),
-        child: const Center(child: CircularProgressIndicator(color: AppColors.appYellow)),
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: AppTheme.globalBackground(context),
+          child: const Center(child: CircularProgressIndicator(color: AppColors.appYellow)),
+        ),
       );
     }
 
@@ -61,15 +89,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       optimizedDailyKwh += kw * device.adjustedHours;
     }
 
-    // Weekly and Monthly Extrapolations (Formulas: Daily * 7, Daily * 30)
-    final double originalWeeklyKwh = originalDailyKwh * 7;
-    final double originalMonthlyKwh = originalDailyKwh * 30;
-
     final double optimizedWeeklyKwh = optimizedDailyKwh * 7;
     final double optimizedMonthlyKwh = optimizedDailyKwh * 30;
 
-    // Cost Extrapolations
-    final double originalMonthlyCost = originalMonthlyKwh * _activeRate;
+    final double originalMonthlyCost = (originalDailyKwh * 30) * _activeRate;
     final double optimizedDailyCost = optimizedDailyKwh * _activeRate;
     final double optimizedWeeklyCost = optimizedWeeklyKwh * _activeRate;
     final double optimizedMonthlyCost = optimizedMonthlyKwh * _activeRate;
@@ -79,53 +102,51 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final bool isOverBudget = optimizedMonthlyCost > _targetBudget;
     final bool isSaving = monthlySavings > 0;
 
-    String trendTitleEn = '';
-    String trendTitlePh = '';
-    String trendDescEn = '';
-    String trendDescPh = '';
+    String trendTitle = '';
+    String trendDesc = '';
     Color trendColor = Colors.greenAccent;
     IconData trendIcon = Icons.trending_down;
 
     if (isOverBudget) {
       trendColor = AppColors.adminRed;
       trendIcon = Icons.warning_amber_rounded;
-      trendTitleEn = 'Budget Exceeded';
-      trendTitlePh = 'Sumobra sa Budget';
-      trendDescEn = 'Even with optimization, your essential (locked) appliances exceed your ₱${_targetBudget.toStringAsFixed(0)} budget. Consider unlocking items.';
-      trendDescPh = 'Kahit na may optimization, ang iyong mga naka-lock na appliances ay lalampas sa iyong budget. Maaari mong i-unlock ang ilang gamit.';
+      trendTitle = isPh ? 'Sumobra sa Budget' : 'Budget Exceeded';
+      trendDesc = isPh
+        ? 'Kahit na may optimization, ang iyong mga naka-lock na appliances ay lalampas sa ₱${_targetBudget.toStringAsFixed(0)} na budget. Maaari mong i-unlock ang ilang gamit.'
+        : 'Even with optimization, your essential (locked) appliances exceed your ₱${_targetBudget.toStringAsFixed(0)} budget. Consider unlocking items.';
     } else if (isSaving) {
       trendColor = Colors.greenAccent;
       trendIcon = Icons.trending_down;
-      trendTitleEn = 'Decreased Usage Trend';
-      trendTitlePh = 'Bumaba ang Konsumo';
-      trendDescEn = 'By optimizing your schedule, your projected monthly bill decreases by ₱${monthlySavings.toStringAsFixed(0)}. You are staying safely within your budget.';
-      trendDescPh = 'Dahil sa optimization, nakatipid ka ng ₱${monthlySavings.toStringAsFixed(0)} sa inaasahang buwanang bill. Pasok na pasok ka sa iyong budget.';
+      trendTitle = isPh ? 'Bumaba ang Konsumo' : 'Decreased Usage Trend';
+      trendDesc = isPh
+        ? 'Dahil sa optimization, nakatipid ka ng ₱${monthlySavings.toStringAsFixed(0)} sa inaasahang buwanang bill. Pasok na pasok ka sa iyong budget.'
+        : 'By optimizing your schedule, your projected monthly bill decreases by ₱${monthlySavings.toStringAsFixed(0)}. You are staying safely within your budget.';
     } else {
       trendColor = AppColors.appYellow;
       trendIcon = Icons.trending_flat;
-      trendTitleEn = 'Stable Usage Trend';
-      trendTitlePh = 'Walang Bawas sa Konsumo';
-      trendDescEn = 'Your unregulated usage is already within your budget. No operating hours were reduced.';
-      trendDescPh = 'Ang iyong orihinal na konsumo ay pasok na sa iyong budget. Walang binawas na oras sa iyong mga appliances.';
+      trendTitle = isPh ? 'Walang Bawas sa Konsumo' : 'Stable Usage Trend';
+      trendDesc = isPh
+        ? 'Ang iyong orihinal na konsumo ay pasok na sa iyong budget. Walang binawas na oras sa iyong mga appliances.'
+        : 'Your unregulated usage is already within your budget. No operating hours were reduced.';
     }
 
-    return Container(
-      decoration: AppTheme.globalBackground(context),
-      child: Scaffold(
+    return Scaffold( // FIX: Wrapped in Scaffold
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(icon: Icon(Icons.arrow_back, color: textColor), onPressed: () => Navigator.pop(context)),
-          title: Text('Analysis & Reports', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-        ),
-        body: SingleChildScrollView(
+        elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back, color: textColor), onPressed: () => Navigator.pop(context)),
+        title: Text(isPh ? 'Pagsusuri' : 'Analysis', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+      ),
+      body: Container(
+        decoration: AppTheme.globalBackground(context),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. TREND ANALYSIS CARD (BILINGUAL)
-              Text('TREND ANALYSIS (PAGSUSURI NG TREND)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
+              // 1. TREND ANALYSIS CARD
+              Text(isPh ? 'PAGSUSURI NG TREND' : 'TREND ANALYSIS', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
@@ -141,61 +162,46 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       children: [
                         Icon(trendIcon, color: trendColor, size: 28),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(trendTitleEn, style: TextStyle(color: trendColor, fontWeight: FontWeight.bold, fontSize: 16)),
-                              Text(trendTitlePh, style: TextStyle(color: trendColor.withValues(alpha: 0.7), fontSize: 13, fontStyle: FontStyle.italic)),
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Text(trendTitle, style: TextStyle(color: trendColor, fontWeight: FontWeight.bold, fontSize: 16))),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text(trendDescEn, style: TextStyle(color: textColor, fontSize: 13, height: 1.4)),
-                    const SizedBox(height: 6),
-                    Text(trendDescPh, style: TextStyle(color: hintColor, fontSize: 12, height: 1.4, fontStyle: FontStyle.italic)),
+                    Text(trendDesc, style: TextStyle(color: textColor, fontSize: 13, height: 1.4)),
                   ],
                 ),
               ),
               const SizedBox(height: 30),
 
-              // 2. HOUSEHOLD TOTALS (As required by Step 8 of Engine Logic)
-              Text('HOUSEHOLD TOTALS (KABUUANG KONSUMO)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
+              // 2. HOUSEHOLD TOTALS
+              Text(isPh ? 'KABUUANG KONSUMO' : 'HOUSEHOLD TOTALS', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
-                    _buildSummaryRow('Daily (Araw-araw)', optimizedDailyKwh, optimizedDailyCost, textColor, hintColor),
+                    _buildSummaryRow(isPh ? 'Araw-araw' : 'Daily', optimizedDailyKwh, optimizedDailyCost, textColor, hintColor),
                     const Divider(color: Colors.white12, height: 24),
-                    _buildSummaryRow('Weekly (Lingguhan)', optimizedWeeklyKwh, optimizedWeeklyCost, textColor, hintColor),
+                    _buildSummaryRow(isPh ? 'Lingguhan' : 'Weekly', optimizedWeeklyKwh, optimizedWeeklyCost, textColor, hintColor),
                     const Divider(color: Colors.white12, height: 24),
-                    _buildSummaryRow('Monthly (Buwanan)', optimizedMonthlyKwh, optimizedMonthlyCost, AppColors.appYellow, hintColor, isBold: true),
+                    _buildSummaryRow(isPh ? 'Buwanan' : 'Monthly', optimizedMonthlyKwh, optimizedMonthlyCost, AppColors.appYellow, hintColor, isBold: true),
                   ],
                 ),
               ),
               const SizedBox(height: 30),
 
-              // 3. APPLIANCE BREAKDOWN (Interactive & Detailed)
-              Text('APPLIANCE BREAKDOWN (DETALYENG GASTUSIN)', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
+              // 3. APPLIANCE BREAKDOWN
+              Text(isPh ? 'DETALYENG GASTUSIN' : 'APPLIANCE BREAKDOWN', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2)),
               const SizedBox(height: 10),
 
               ...devices.map((device) {
                 final bool isReduced = device.adjustedHours < device.userAssignedHours;
                 final Color statusColor = device.isLocked ? AppColors.appYellow : (isReduced ? Colors.orange : Colors.greenAccent);
 
-                // Device specific math based on client formulas
                 final double devKw = device.presetWattage / 1000;
                 final double devDailyKwh = devKw * device.adjustedHours;
                 final double devWeeklyKwh = devDailyKwh * 7;
                 final double devMonthlyKwh = devDailyKwh * 30;
-
-                final double devDailyCost = devDailyKwh * _activeRate;
-                final double devWeeklyCost = devWeeklyKwh * _activeRate;
-                final double devMonthlyCost = devMonthlyKwh * _activeRate;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -208,44 +214,42 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header: Icon, Name, and Lock Toggle
                       Row(
                         children: [
-                          IconButton(
-                            icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open),
-                            color: statusColor,
-                            onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(device.id, device.isLocked),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                            child: Icon(_getApplianceIcon(device.customName), color: statusColor, size: 20),
                           ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(device.customName, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 15)),
-                                Text('Power: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${device.userAssignedHours.toStringAsFixed(1)}h', style: TextStyle(color: hintColor, fontSize: 11)),
+                                Text(isPh ? 'Lakas: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}' : 'Power: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}', style: TextStyle(color: hintColor, fontSize: 11)),
                               ],
                             ),
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('${device.adjustedHours.toStringAsFixed(1)}h', style: TextStyle(color: statusColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                              Text(device.isLocked ? 'Locked' : (isReduced ? 'Reduced' : 'Optimized'), style: TextStyle(color: hintColor, fontSize: 10)),
+                              Text(_formatTime(device.adjustedHours), style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(device.isLocked ? (isPh ? 'Naka-lock' : 'Locked') : (isReduced ? (isPh ? 'Binawasan' : 'Reduced') : (isPh ? 'Na-optimize' : 'Optimized')), style: TextStyle(color: hintColor, fontSize: 10)),
                             ],
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      // Detailed Data Table (Step 8 Requirement)
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(8)),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildStatCol('Daily', devDailyKwh, devDailyCost, textColor, hintColor),
-                            _buildStatCol('Weekly', devWeeklyKwh, devWeeklyCost, textColor, hintColor),
-                            _buildStatCol('Monthly', devMonthlyKwh, devMonthlyCost, textColor, hintColor),
+                            _buildStatCol(isPh ? 'Arawan' : 'Daily', devDailyKwh, devDailyKwh * _activeRate, textColor, hintColor),
+                            _buildStatCol(isPh ? 'Lingguhan' : 'Weekly', devWeeklyKwh, devWeeklyKwh * _activeRate, textColor, hintColor),
+                            _buildStatCol(isPh ? 'Buwanan' : 'Monthly', devMonthlyKwh, devMonthlyKwh * _activeRate, textColor, hintColor),
                           ],
                         ),
                       ),

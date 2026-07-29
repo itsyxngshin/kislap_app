@@ -24,24 +24,21 @@ void main() async {
   );
 }
 
-class KislapApp extends StatelessWidget {
+class KislapApp extends ConsumerWidget {
   const KislapApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (_, ThemeMode currentMode, __) {
-        return MaterialApp(
-          title: 'Kislap',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: currentMode,
-          // Correctly set to SplashScreen as the initial landing screen
-          home: const SplashScreen(),
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Listens to the SQLite-backed settings provider!
+    final currentSettings = ref.watch(settingsProvider);
+
+    return MaterialApp(
+      title: 'Kislap',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: currentSettings.themeMode, // Instantly updates when toggled
+      home: const SplashScreen(),
     );
   }
 }
