@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'services/sync_service.dart';
 import 'screens/auth/splash_screen.dart'; // Handles initial branding & auth routing
+import 'providers/settings_provider.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 

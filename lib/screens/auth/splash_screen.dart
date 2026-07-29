@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../services/database_helper.dart';
 import 'onboarding_screen.dart';
+import 'tutorial_screen.dart'; // <-- ADDED THIS IMPORT
 import '../dashboard/dashboard_shell.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -55,25 +56,25 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     // 2. THE FIX: Check if Guest Setup has already been completed in SQLite
     try {
-          final db = await DatabaseHelper.instance.database;
-          final settings = await db.query('user_settings', limit: 1);
+      final db = await DatabaseHelper.instance.database;
+      final settings = await db.query('user_settings', limit: 1);
 
-          if (settings.isNotEmpty) {
-            final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
-            final isFirstTime = (settings.first['is_first_time'] as int?) == 1; // Check tutorial status
+      if (settings.isNotEmpty) {
+        final budget = (settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0;
+        final isFirstTime = (settings.first['is_first_time'] as int?) == 1; // Check tutorial status
 
-            if (budget > 0) {
-              if (mounted) {
-                // If they haven't seen the tutorial, send them there. Otherwise, Dashboard.
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => isFirstTime ? const TutorialScreen() : const DashboardShell()),
-                );
-                return;
-              }
-            }
+        if (budget > 0) {
+          if (mounted) {
+            // Removed const from the ternary operator to satisfy the web compiler
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => isFirstTime ? const TutorialScreen() : const DashboardShell()),
+            );
+            return;
           }
-        } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     // 3. If no account AND no guest settings exist, show Onboarding
     if (mounted) {
