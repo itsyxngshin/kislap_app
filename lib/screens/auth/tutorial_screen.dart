@@ -13,143 +13,408 @@ class TutorialScreen extends ConsumerStatefulWidget {
 }
 
 class _TutorialScreenState extends ConsumerState<TutorialScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+  int _currentStep = 0;
 
-  final List<Map<String, String>> _slides = [
-    {
-      'title': 'Set Your Budget',
-      'title_ph': 'Itakda ang Budget',
-      'desc': 'Input your monthly electricity budget and let Kislap do the math based on regional tariffs.',
-      'desc_ph': 'Ipasok ang iyong buwanang limitasyon at hayaang kalkulahin ito ng Kislap.',
-      'icon': 'account_balance_wallet',
-    },
-    {
-      'title': 'Lock Essentials',
-      'title_ph': 'I-lock ang Mahahalaga',
-      'desc': 'Lock (🔒) appliances you must use. We will reduce the unlocked ones to protect your budget.',
-      'desc_ph': 'I-lock ang mahahalagang gamit. Babawasan namin ang oras ng iba para makatipid.',
-      'icon': 'lock',
-    },
-    {
-      'title': 'Track Consumption',
-      'title_ph': 'Bantayan ang Konsumo',
-      'desc': 'View daily estimates and monthly projections to avoid bill shocks.',
-      'desc_ph': 'Tingnan ang iyong pang-araw-araw na gastos para iwas-gulat sa bill.',
-      'icon': 'bar_chart',
-    },
-  ];
+  // The step definitions containing bilingual text and which tab to show
+  late final List<Map<String, dynamic>> _tutorialSteps;
+
+  @override
+  void initState() {
+    super.initState();
+    _tutorialSteps = [
+      {
+        'tab': 0,
+        'title_en': 'The Dashboard',
+        'title_ph': 'Ang Buod (Dashboard)',
+        'desc_en': 'Here you can see a bird\'s-eye view of your budget. The system automatically compares your optimized bill with your target limit.',
+        'desc_ph': 'Dito mo makikita ang kabuuan ng iyong budget. Awtomatikong kinukumpara ng sistema ang na-optimize na bill sa iyong limitasyon.',
+      },
+      {
+        'tab': 1,
+        'title_en': 'Locking Appliances',
+        'title_ph': 'Pag-lock ng mga Gamit',
+        'desc_en': 'In the Devices tab, you can Lock (🔒) appliances you MUST use (like a fridge). Unlocked items (🔓) will be reduced to protect your budget.',
+        'desc_ph': 'Sa Devices tab, i-lock (🔒) ang mga gamit na kailangan mo (tulad ng ref). Ang mga naka-unlock (🔓) ay babawasan para hindi ka lumampas sa budget.',
+      },
+      {
+        'tab': 2,
+        'title_en': 'Analysis & Projections',
+        'title_ph': 'Pagsusuri at Proyeksyon',
+        'desc_en': 'The Analysis tab explains exactly how Kislap does the math, showing daily, weekly, and monthly projections based on your regional tariff.',
+        'desc_ph': 'Ipinapakita ng Analysis tab kung paano kinakalkula ng Kislap ang gastos araw-araw, lingguhan, at buwanan base sa presyo ng kuryente sa inyong lugar.',
+      },
+      {
+        'tab': 3,
+        'title_en': 'Settings & Billing',
+        'title_ph': 'Mga Setting at Bill',
+        'desc_en': 'Update your budget, change your tariff rate, log your past billing history, or switch the app language anytime in the Settings tab.',
+        'desc_ph': 'I-update ang budget, palitan ang halaga ng kuryente, itala ang nakaraang bill, o baguhin ang wika ng app anumang oras sa Settings tab.',
+      },
+    ];
+  }
+
+  void _nextStep() async {
+    if (_currentStep < _tutorialSteps.length - 1) {
+      setState(() => _currentStep++);
+    } else {
+      // Mark tutorial as complete in SQLite and launch the real app
+      await ref.read(settingsProvider.notifier).completeTutorial();
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isPh = ref.watch(settingsProvider).language == 'ph';
+    final surfaceColor = Theme.of(context).colorScheme.surface;
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.7);
-    final lang = ref.watch(settingsProvider).language; // Dynamic Language
+
+    final currentTab = _tutorialSteps[_currentStep]['tab'] as int;
 
     return Scaffold(
-      body: Container(
-        decoration: AppTheme.globalBackground(context),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: (int page) => setState(() => _currentPage = page),
-                  itemCount: _slides.length,
-                  itemBuilder: (context, index) {
-                    final slide = _slides[index];
-                    return Padding(
-                      padding: const EdgeInsets.all(40.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _getIcon(slide['icon']!),
-                            size: 100,
-                            color: AppColors.appYellow,
-                          ),
-                          const SizedBox(height: 50),
-                          Text(
-                            lang == 'ph' ? slide['title_ph']! : slide['title']!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: textColor, fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            lang == 'ph' ? slide['desc_ph']! : slide['desc']!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: hintColor, fontSize: 16, height: 1.5),
-                          ),
-                        ],
+      body: Stack(
+        children: [
+          // 1. THE DUMMY APP LAYER (Behind the overlay)
+          // We use IgnorePointer so the user can't click the fake buttons
+          IgnorePointer(
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: Container(
+                decoration: AppTheme.globalBackground(context),
+                child: SafeArea(
+                  child: IndexedStack(
+                    index: currentTab,
+                    children: [
+                      _buildDummyHome(surfaceColor, textColor),
+                      _buildDummyDevices(surfaceColor, textColor),
+                      _buildDummyAnalysis(surfaceColor, textColor),
+                      _buildDummySettings(surfaceColor, textColor),
+                    ],
+                  ),
+                ),
+              ),
+              bottomNavigationBar: Container(
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1))),
+                child: NavigationBar(
+                  selectedIndex: currentTab,
+                  backgroundColor: surfaceColor,
+                  indicatorColor: AppColors.appYellow.withValues(alpha: 0.2),
+                  destinations: const [
+                    NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: AppColors.appYellow), label: 'Home'),
+                    NavigationDestination(icon: Icon(Icons.electrical_services_outlined), selectedIcon: Icon(Icons.electrical_services, color: AppColors.appYellow), label: 'Devices'),
+                    NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics, color: AppColors.appYellow), label: 'Analysis'),
+                    NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings, color: AppColors.appYellow), label: 'Settings'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 2. THE TRANSLUCENT OVERLAY LAYER
+          Container(
+            color: Colors.black.withValues(alpha: 0.75),
+            width: double.infinity,
+            height: double.infinity,
+          ),
+
+          // 3. THE INTERACTIVE TOOLTIP DIALOG
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(animation),
+                        child: child,
                       ),
                     );
                   },
-                ),
-              ),
-              // Dot Indicators
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _slides.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    height: 8,
-                    width: _currentPage == index ? 24 : 8,
+                  child: Container(
+                    key: ValueKey<int>(_currentStep),
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: _currentPage == index ? AppColors.appYellow : Colors.grey.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(4),
+                      color: surfaceColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.appYellow.withValues(alpha: 0.2), blurRadius: 20, spreadRadius: 5)
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getIconForStep(_currentStep),
+                          size: 48,
+                          color: AppColors.appYellow,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          isPh ? _tutorialSteps[_currentStep]['title_ph'] : _tutorialSteps[_currentStep]['title_en'],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          isPh ? _tutorialSteps[_currentStep]['desc_ph'] : _tutorialSteps[_currentStep]['desc_en'],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 14, height: 1.5),
+                        ),
+                        const SizedBox(height: 30),
+
+                        // Progress Dots
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            _tutorialSteps.length,
+                            (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              height: 8,
+                              width: _currentStep == index ? 24 : 8,
+                              decoration: BoxDecoration(
+                                color: _currentStep == index ? AppColors.appYellow : Colors.grey.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Action Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _nextStep,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.appYellow,
+                              foregroundColor: Colors.black87,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              _currentStep == _tutorialSteps.length - 1
+                                ? (isPh ? 'Pumasok sa App' : 'Enter App')
+                                : (isPh ? 'Susunod' : 'Next'),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
-              // Next / Get Started Button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
-                    onPressed: () async {
-                      if (_currentPage < _slides.length - 1) {
-                        _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeIn);
-                      } else {
-                        // Mark tutorial as complete in SQLite and proceed to Dashboard
-                        await ref.read(settingsProvider.notifier).completeTutorial();
-                        if (context.mounted) {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
-                        }
-                      }
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.appYellow,
-                      foregroundColor: Colors.black87,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: Text(
-                      _currentPage == _slides.length - 1
-                          ? (lang == 'ph' ? 'Magsimula' : 'Get Started')
-                          : (lang == 'ph' ? 'Susunod' : 'Next'),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  IconData _getIcon(String iconName) {
-    switch (iconName) {
-      case 'account_balance_wallet': return Icons.account_balance_wallet_outlined;
-      case 'lock': return Icons.lock_outline;
-      case 'bar_chart': return Icons.bar_chart_rounded;
-      default: return Icons.bolt;
+  IconData _getIconForStep(int step) {
+    switch (step) {
+      case 0: return Icons.dashboard_outlined;
+      case 1: return Icons.lock_outline;
+      case 2: return Icons.insights_outlined;
+      case 3: return Icons.settings_outlined;
+      default: return Icons.rocket_launch_outlined;
     }
+  }
+
+  // =========================================================================
+  // DUMMY SCREEN BUILDERS (Visual Replicas of the App)
+  // =========================================================================
+
+  Widget _buildDummyHome(Color surfaceColor, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Dashboard', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 25),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: surfaceColor.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('OPTIMIZED MONTHLY BILL', style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('₱', style: TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 4),
+                    Text('1,250.00', style: TextStyle(color: textColor, fontSize: 36, fontWeight: FontWeight.bold, height: 1.0)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const LinearProgressIndicator(value: 0.83, backgroundColor: Colors.black26, valueColor: AlwaysStoppedAnimation<Color>(Colors.greenAccent)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _dummyQuickAction(Icons.add, 'Add item', true, surfaceColor),
+              _dummyQuickAction(Icons.show_chart, 'Analysis', false, surfaceColor),
+              _dummyQuickAction(Icons.settings, 'Config', false, surfaceColor),
+              _dummyQuickAction(Icons.ios_share, 'Export', false, surfaceColor),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDummyDevices(Color surfaceColor, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('My Planning Space', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 25),
+          _dummyDeviceCard('Refrigerator', '150W', '24.0h', true, surfaceColor, textColor),
+          _dummyDeviceCard('Air Conditioner', '1050W', '5.2h', false, surfaceColor, textColor),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDummyAnalysis(Color surfaceColor, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Analysis', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 25),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              children: [
+                const Icon(Icons.trending_down, color: Colors.greenAccent, size: 28),
+                const SizedBox(width: 12),
+                Text('Decreased Usage Trend', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                const Text('HOW KISLAP COMPUTES', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                  child: const Text('(Wattage ÷ 1000) × Hours', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDummySettings(Color surfaceColor, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Settings', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 25),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Monthly Budget Limit', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                  child: Text('₱ 1500.00', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 16),
+                const Text('Utility Rate', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity, padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                  child: Text('₱ 12.35 / kWh', style: TextStyle(color: textColor, fontSize: 16)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dummyQuickAction(IconData icon, String label, bool isPrimary, Color surfaceColor) {
+    return Column(
+      children: [
+        Container(
+          height: 60, width: 60,
+          decoration: BoxDecoration(color: isPrimary ? Colors.orange.shade600 : surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+          child: Icon(icon, color: isPrimary ? Colors.white : Colors.white60, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _dummyDeviceCard(String name, String watts, String hours, bool isLocked, Color surfaceColor, Color textColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceColor.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : Colors.transparent),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : Colors.black26, shape: BoxShape.circle),
+            child: Icon(isLocked ? Icons.ac_unit : Icons.electrical_services, color: isLocked ? AppColors.appYellow : Colors.white60, size: 20),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('$watts • Target: $hours/day', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? AppColors.appYellow : Colors.white60),
+        ],
+      ),
+    );
   }
 }
