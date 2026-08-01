@@ -16,8 +16,13 @@ class OnboardingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
     final settings = ref.watch(settingsProvider);
     final isPh = settings.language == 'ph';
+
+    // Adaptive color for the Guest button to ensure contrast in Light Mode
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final guestColor = isDark ? Colors.greenAccent.withValues(alpha: 0.8) : Colors.green.shade700;
 
     return Scaffold(
       body: Container(
@@ -38,7 +43,7 @@ class OnboardingScreen extends ConsumerWidget {
                           // Top Bar: Language Toggle
                           Align(
                             alignment: Alignment.topRight,
-                            child: _buildLanguageToggle(context, ref, isPh),
+                            child: _buildLanguageToggle(context, ref, isPh, surfaceColor, textColor),
                           ),
 
                           const Spacer(flex: 2),
@@ -159,10 +164,10 @@ class OnboardingScreen extends ConsumerWidget {
                                 Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestSetupScreen()));
                               }
                             },
-                            icon: Icon(Icons.rocket_launch_outlined, color: Colors.greenAccent.withValues(alpha: 0.8), size: 20),
+                            icon: Icon(Icons.rocket_launch_outlined, color: guestColor, size: 20),
                             label: Text(
                               isPh ? 'Magpatuloy bilang Bisita' : 'Continue as Guest',
-                              style: TextStyle(color: Colors.greenAccent.withValues(alpha: 0.8), fontSize: 15, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: guestColor, fontSize: 15, fontWeight: FontWeight.w600),
                             ),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -184,24 +189,24 @@ class OnboardingScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLanguageToggle(BuildContext context, WidgetRef ref, bool isPh) {
+  Widget _buildLanguageToggle(BuildContext context, WidgetRef ref, bool isPh, Color surfaceColor, Color textColor) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+        color: surfaceColor.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildLangOption(ref, 'EN', 'en', !isPh),
-          _buildLangOption(ref, 'PH', 'ph', isPh),
+          _buildLangOption(ref, 'EN', 'en', !isPh, textColor),
+          _buildLangOption(ref, 'PH', 'ph', isPh, textColor),
         ],
       ),
     );
   }
 
-  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected) {
+  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected, Color textColor) {
     return GestureDetector(
       onTap: () => ref.read(settingsProvider.notifier).setLanguage(langCode),
       child: AnimatedContainer(
@@ -214,7 +219,7 @@ class OnboardingScreen extends ConsumerWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.black87 : Colors.white70,
+            color: isSelected ? Colors.black87 : textColor,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),

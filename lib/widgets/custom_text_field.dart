@@ -22,36 +22,36 @@ class CustomTextField extends StatefulWidget {
 }
 
 class _CustomTextFieldState extends State<CustomTextField> {
-  // This state variable tracks if the text is hidden or visible
   late bool _obscureText;
 
   @override
   void initState() {
     super.initState();
-    // Only obscure the text initially if the widget is flagged as a password field
     _obscureText = widget.isPassword;
   }
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     return TextField(
       controller: widget.controller,
-      obscureText: _obscureText, // Only ONE declaration here
+      obscureText: _obscureText,
       keyboardType: widget.keyboardType,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: textColor),
       decoration: InputDecoration(
         hintText: widget.hint,
-        hintStyle: const TextStyle(color: AppColors.textHintColor, fontSize: 14),
+        hintStyle: TextStyle(color: hintColor, fontSize: 14),
         filled: true,
-        fillColor: AppColors.inputBackground,
-        prefixIcon: Icon(widget.icon, color: AppColors.textHintColor, size: 20),
-
-        // Properly implements an IconButton to toggle the state
+        fillColor: surfaceColor.withValues(alpha: 0.6),
+        prefixIcon: Icon(widget.icon, color: hintColor, size: 20),
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(
                   _obscureText ? Icons.visibility_off : Icons.visibility,
-                  color: AppColors.textHintColor,
+                  color: hintColor,
                   size: 20,
                 ),
                 onPressed: () {
@@ -61,7 +61,6 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 },
               )
             : null,
-
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

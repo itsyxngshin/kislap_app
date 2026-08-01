@@ -32,8 +32,8 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
         'tab': 1,
         'title_en': 'Locking Appliances',
         'title_ph': 'Pag-lock ng mga Gamit',
-        'desc_en': 'In the Devices tab, you can Lock (🔒) appliances you MUST use (like a fridge). Unlocked items (🔓) will be reduced to protect your budget.',
-        'desc_ph': 'Sa Devices tab, i-lock (🔒) ang mga gamit na kailangan mo (tulad ng ref). Ang mga naka-unlock (🔓) ay babawasan para hindi ka lumampas sa budget.',
+        'desc_en': 'In the Devices tab, you can Lock (🔒) appliances you MUST use. Unlocked items (🔓) will be reduced to protect your budget.',
+        'desc_ph': 'Sa Devices tab, i-lock (🔒) ang mga gamit na kailangan mo. Ang mga naka-unlock (🔓) ay babawasan para hindi ka lumampas sa budget.',
       },
       {
         'tab': 2,
@@ -68,6 +68,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     final isPh = ref.watch(settingsProvider).language == 'ph';
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
 
     final currentTab = _tutorialSteps[_currentStep]['tab'] as int;
 
@@ -84,32 +85,32 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                   child: IndexedStack(
                     index: currentTab,
                     children: [
-                      _buildDummyHome(surfaceColor, textColor),
-                      _buildDummyDevices(surfaceColor, textColor),
-                      _buildDummyAnalysis(surfaceColor, textColor),
-                      _buildDummySettings(surfaceColor, textColor),
+                      _buildDummyHome(surfaceColor, textColor, hintColor, isPh),
+                      _buildDummyDevices(surfaceColor, textColor, hintColor, isPh),
+                      _buildDummyAnalysis(surfaceColor, textColor, hintColor, isPh),
+                      _buildDummySettings(surfaceColor, textColor, hintColor, isPh),
                     ],
                   ),
                 ),
               ),
               bottomNavigationBar: Container(
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1))),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: textColor.withValues(alpha: 0.05), width: 1))),
                 child: NavigationBar(
                   selectedIndex: currentTab,
                   backgroundColor: surfaceColor,
                   indicatorColor: AppColors.appYellow.withValues(alpha: 0.2),
-                  destinations: const [
-                    NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: AppColors.appYellow), label: 'Home'),
-                    NavigationDestination(icon: Icon(Icons.electrical_services_outlined), selectedIcon: Icon(Icons.electrical_services, color: AppColors.appYellow), label: 'Devices'),
-                    NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics, color: AppColors.appYellow), label: 'Analysis'),
-                    NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings, color: AppColors.appYellow), label: 'Settings'),
+                  destinations: [
+                    NavigationDestination(icon: Icon(Icons.home_outlined, color: hintColor), selectedIcon: const Icon(Icons.home, color: AppColors.appYellow), label: isPh ? 'Buod' : 'Home'),
+                    NavigationDestination(icon: Icon(Icons.electrical_services_outlined, color: hintColor), selectedIcon: const Icon(Icons.electrical_services, color: AppColors.appYellow), label: isPh ? 'Mga Gamit' : 'Devices'),
+                    NavigationDestination(icon: Icon(Icons.analytics_outlined, color: hintColor), selectedIcon: const Icon(Icons.analytics, color: AppColors.appYellow), label: isPh ? 'Pagsusuri' : 'Analysis'),
+                    NavigationDestination(icon: Icon(Icons.settings_outlined, color: hintColor), selectedIcon: const Icon(Icons.settings, color: AppColors.appYellow), label: isPh ? 'Setting' : 'Settings'),
                   ],
                 ),
               ),
             ),
           ),
 
-          // 2. THE TRANSLUCENT OVERLAY LAYER (Made lighter so UI is visible)
+          // 2. THE TRANSLUCENT OVERLAY LAYER
           Container(
             color: Colors.black.withValues(alpha: 0.4),
             width: double.infinity,
@@ -120,7 +121,6 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-              // Pinned 100px from the bottom to sit right above the navigation bar
               padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 100.0),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
@@ -141,7 +141,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5), width: 2),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 5)
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, spreadRadius: 5)
                     ],
                   ),
                   child: Column(
@@ -230,13 +230,13 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
   // DUMMY SCREEN BUILDERS (Visual Replicas of the App)
   // =========================================================================
 
-  Widget _buildDummyHome(Color surfaceColor, Color textColor) {
+  Widget _buildDummyHome(Color surfaceColor, Color textColor, Color hintColor, bool isPh) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Dashboard', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          Text(isPh ? 'Buod' : 'Dashboard', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 25),
           Container(
             padding: const EdgeInsets.all(24),
@@ -248,7 +248,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('OPTIMIZED MONTHLY BILL', style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(isPh ? 'NA-OPTIMIZE NA BUWANANG BILL' : 'OPTIMIZED MONTHLY BILL', style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -263,14 +263,50 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.bolt, color: AppColors.appYellow, size: 20),
+                      const SizedBox(height: 10),
+                      Text('4.5 kWh', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(isPh ? 'Konsumo ngayon' : "Today's draw", style: TextStyle(color: hintColor, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.access_time, color: Colors.greenAccent, size: 20),
+                      const SizedBox(height: 10),
+                      Text('₱56', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(isPh ? 'Est. gastos ngayon' : "Est. cost today", style: TextStyle(color: hintColor, fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _dummyQuickAction(Icons.add, 'Add item', true, surfaceColor),
-              _dummyQuickAction(Icons.show_chart, 'Analysis', false, surfaceColor),
-              _dummyQuickAction(Icons.settings, 'Config', false, surfaceColor),
-              _dummyQuickAction(Icons.ios_share, 'Export', false, surfaceColor),
+              _dummyQuickAction(Icons.add, isPh ? 'Magdagdag' : 'Add item', true, surfaceColor, hintColor),
+              _dummyQuickAction(Icons.show_chart, isPh ? 'Pagsusuri' : 'Analysis', false, surfaceColor, hintColor),
+              _dummyQuickAction(Icons.settings, isPh ? 'Setting' : 'Config', false, surfaceColor, hintColor),
+              _dummyQuickAction(Icons.ios_share, isPh ? 'I-export' : 'Export', false, surfaceColor, hintColor),
             ],
           )
         ],
@@ -278,28 +314,52 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     );
   }
 
-  Widget _buildDummyDevices(Color surfaceColor, Color textColor) {
+  Widget _buildDummyDevices(Color surfaceColor, Color textColor, Color hintColor, bool isPh) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('My Planning Space', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          Text(isPh ? 'Lugar ng Pagpaplano' : 'My Planning Space', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.appYellow.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline, color: AppColors.appYellow, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isPh
+                      ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock (🔓) ang iba para sa awtomatikong pag-optimize ng budget.'
+                      : 'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
+                    style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 12, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 25),
-          _dummyDeviceCard('Refrigerator', '150W', '24.0h', true, surfaceColor, textColor),
-          _dummyDeviceCard('Air Conditioner', '1050W', '5.2h', false, surfaceColor, textColor),
+          _dummyDeviceCard('Refrigerator', '150W', '24.0h', true, surfaceColor, textColor, hintColor),
+          _dummyDeviceCard('Air Conditioner', '1050W', '5.2h', false, surfaceColor, textColor, hintColor),
         ],
       ),
     );
   }
 
-  Widget _buildDummyAnalysis(Color surfaceColor, Color textColor) {
+  Widget _buildDummyAnalysis(Color surfaceColor, Color textColor, Color hintColor, bool isPh) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Analysis', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          Text(isPh ? 'Pagsusuri' : 'Analysis', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 25),
           Container(
             padding: const EdgeInsets.all(20),
@@ -308,7 +368,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
               children: [
                 const Icon(Icons.trending_down, color: Colors.greenAccent, size: 28),
                 const SizedBox(width: 12),
-                Text('Decreased Usage Trend', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(isPh ? 'Bumaba ang Konsumo' : 'Decreased Usage Trend', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
           ),
@@ -319,11 +379,11 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('HOW KISLAP COMPUTES', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(isPh ? 'PAANO KINAKALKULA NG KISLAP' : 'HOW KISLAP COMPUTES', style: const TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
                   child: const Text('(Wattage ÷ 1000) × Hours', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
                 ),
               ],
@@ -334,33 +394,56 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     );
   }
 
-  Widget _buildDummySettings(Color surfaceColor, Color textColor) {
+  Widget _buildDummySettings(Color surfaceColor, Color textColor, Color hintColor, bool isPh) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Settings', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+          Text(isPh ? 'Mga Setting' : 'Settings', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 25),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+            child: Row(
+              children: [
+                Container(
+                  height: 56, width: 56,
+                  decoration: BoxDecoration(color: AppColors.appYellow.withValues(alpha: 0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5))),
+                  child: const Center(child: Text('K', style: TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold))),
+                ),
+                const SizedBox(width: 15),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Kislap User', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('user@kislap.app', style: TextStyle(color: hintColor, fontSize: 13)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 35),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Monthly Budget Limit', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                Text(isPh ? 'Limitasyon sa Budget' : 'Monthly Budget Limit', style: TextStyle(color: hintColor, fontSize: 12)),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
                   child: Text('₱ 1500.00', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 16),
-                const Text('Utility Rate', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                Text(isPh ? 'Halaga ng Kuryente' : 'Utility Rate', style: TextStyle(color: hintColor, fontSize: 12)),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
                   child: Text('₱ 12.35 / kWh', style: TextStyle(color: textColor, fontSize: 16)),
                 ),
               ],
@@ -371,35 +454,35 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     );
   }
 
-  Widget _dummyQuickAction(IconData icon, String label, bool isPrimary, Color surfaceColor) {
+  Widget _dummyQuickAction(IconData icon, String label, bool isPrimary, Color surfaceColor, Color hintColor) {
     return Column(
       children: [
         Container(
           height: 60, width: 60,
           decoration: BoxDecoration(color: isPrimary ? Colors.orange.shade600 : surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
-          child: Icon(icon, color: isPrimary ? Colors.white : Colors.white60, size: 28),
+          child: Icon(icon, color: isPrimary ? Colors.white : hintColor, size: 28),
         ),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        Text(label, style: TextStyle(color: hintColor, fontSize: 12)),
       ],
     );
   }
 
-  Widget _dummyDeviceCard(String name, String watts, String hours, bool isLocked, Color surfaceColor, Color textColor) {
+  Widget _dummyDeviceCard(String name, String watts, String hours, bool isLocked, Color surfaceColor, Color textColor, Color hintColor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : Colors.transparent),
+        border: Border.all(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : textColor.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : Colors.black26, shape: BoxShape.circle),
-            child: Icon(isLocked ? Icons.ac_unit : Icons.electrical_services, color: isLocked ? AppColors.appYellow : Colors.white60, size: 20),
+            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : textColor.withValues(alpha: 0.05), shape: BoxShape.circle),
+            child: Icon(isLocked ? Icons.ac_unit : Icons.electrical_services, color: isLocked ? AppColors.appYellow : hintColor, size: 20),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -407,11 +490,11 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                Text('$watts • Target: $hours/day', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                Text('$watts • Target: $hours/day', style: TextStyle(color: hintColor, fontSize: 12)),
               ],
             ),
           ),
-          Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? AppColors.appYellow : Colors.white60),
+          Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? AppColors.appYellow : hintColor),
         ],
       ),
     );

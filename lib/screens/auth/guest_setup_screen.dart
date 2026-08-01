@@ -102,6 +102,8 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
@@ -113,17 +115,17 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: textColor),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
             isPh ? 'Setup ng Bisita' : 'Guest Setup',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)
           ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
-              child: _buildLanguageToggle(ref, isPh),
+              child: _buildLanguageToggle(context, ref, isPh, textColor, surfaceColor),
             ),
           ],
         ),
@@ -154,7 +156,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                           ),
                           Text(
                             _getCurrentBillingMonth(isPh),
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -168,7 +170,10 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
               child: Theme(
                 data: Theme.of(context).copyWith(
                   canvasColor: Colors.transparent,
-                  colorScheme: const ColorScheme.dark(primary: AppColors.appYellow, onSurface: Colors.white),
+                  colorScheme: Theme.of(context).colorScheme.copyWith(
+                    primary: AppColors.appYellow,
+                    onSurface: textColor,
+                  ),
                 ),
                 child: Stepper(
                   type: StepperType.vertical,
@@ -222,7 +227,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                               onPressed: _isLoading ? null : details.onStepCancel,
                               child: Text(
                                 isPh ? 'Bumalik' : 'Back',
-                                style: const TextStyle(color: AppColors.textHintColor, fontSize: 16)
+                                style: TextStyle(color: hintColor, fontSize: 16)
                               ),
                             ),
                           ]
@@ -234,11 +239,11 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                     Step(
                       title: Text(
                         isPh ? 'Batayang Pinansyal' : 'Financial Baseline',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                        style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)
                       ),
                       subtitle: Text(
                         isPh ? 'Limitasyon sa budget' : 'Optimization limits',
-                        style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)
+                        style: TextStyle(color: hintColor, fontSize: 12)
                       ),
                       isActive: _currentStep >= 0,
                       state: _currentStep > 0 ? StepState.complete : StepState.indexed,
@@ -256,14 +261,14 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  isPh ? 'TARGET NA BUDGET' : 'TARGET BUDGET',
-                                  style: const TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)
+                                const Text(
+                                  'TARGET BUDGET',
+                                  style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   isPh ? 'Magkano ang limitasyon mo ngayong buwan?' : 'How much are you willing to spend this month?',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                                  style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)
                                 ),
                                 const SizedBox(height: 16),
                                 CustomTextField(
@@ -293,7 +298,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   isPh ? 'Tingnan ang electric bill para sa eksaktong ₱/kWh.' : 'Check your electric bill for the exact ₱/kWh rate.',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                                  style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)
                                 ),
                                 const SizedBox(height: 16),
                                 CustomTextField(
@@ -311,11 +316,11 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                     Step(
                       title: Text(
                         isPh ? 'Uri ng Bahayan' : 'Household Class',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                        style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)
                       ),
                       subtitle: Text(
                         isPh ? 'Antas ng paggamit (kVA scale)' : 'Sets the kVA scale',
-                        style: const TextStyle(color: AppColors.textHintColor, fontSize: 12)
+                        style: TextStyle(color: hintColor, fontSize: 12)
                       ),
                       isActive: _currentStep >= 1,
                       content: Column(
@@ -324,7 +329,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                           const SizedBox(height: 16),
                           Text(
                             isPh ? 'Piliin ang uri ng bahay upang matukoy ang limitasyon sa kuryente.' : 'Select your setup size to enforce safe power distribution limits.',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)
+                            style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)
                           ),
                           const SizedBox(height: 16),
                           Container(
@@ -334,15 +339,18 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                               children: [
                                 _buildRadioOption(
                                   'Small (0 - 5 kVA)',
-                                  isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, and lights.'
+                                  isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, and lights.',
+                                  textColor, hintColor
                                 ),
                                 _buildRadioOption(
                                   'Medium (6 - 15 kVA)',
-                                  isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, fridge, etc.'
+                                  isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, fridge, etc.',
+                                  textColor, hintColor
                                 ),
                                 _buildRadioOption(
                                   'Large (16 - 25 kVA)',
-                                  isPh ? 'Malakas na konsumo. Maraming aircon at malaking gamit.' : 'Heavy usage. Multiple ACs, large appliances.'
+                                  isPh ? 'Malakas na konsumo. Maraming aircon at malaking gamit.' : 'Heavy usage. Multiple ACs, large appliances.',
+                                  textColor, hintColor
                                 ),
                               ],
                             ),
@@ -360,24 +368,24 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
     );
   }
 
-  Widget _buildLanguageToggle(WidgetRef ref, bool isPh) {
+  Widget _buildLanguageToggle(BuildContext context, WidgetRef ref, bool isPh, Color textColor, Color surfaceColor) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black26,
+        color: surfaceColor.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildLangOption(ref, 'EN', 'en', !isPh),
-          _buildLangOption(ref, 'PH', 'ph', isPh),
+          _buildLangOption(ref, 'EN', 'en', !isPh, textColor),
+          _buildLangOption(ref, 'PH', 'ph', isPh, textColor),
         ],
       ),
     );
   }
 
-  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected) {
+  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected, Color textColor) {
     return GestureDetector(
       onTap: () => ref.read(settingsProvider.notifier).setLanguage(langCode),
       child: AnimatedContainer(
@@ -390,7 +398,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.black87 : Colors.white70,
+            color: isSelected ? Colors.black87 : textColor,
             fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
@@ -399,7 +407,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
     );
   }
 
-  Widget _buildRadioOption(String title, String description) {
+  Widget _buildRadioOption(String title, String description, Color textColor, Color hintColor) {
     String value = title.split(' ').first;
     bool isSelected = _householdSize == value;
 
@@ -410,7 +418,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+          color: isSelected ? textColor.withValues(alpha: 0.05) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? AppColors.appYellow.withValues(alpha: 0.4) : Colors.transparent,
@@ -421,7 +429,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected ? Colors.greenAccent : Colors.white54,
+              color: isSelected ? AppColors.appYellow : hintColor,
               size: 22
             ),
             const SizedBox(width: 12),
@@ -432,7 +440,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                   Text(
                     title,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
+                      color: isSelected ? textColor : hintColor,
                       fontSize: 15,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
                     )
@@ -440,7 +448,7 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: const TextStyle(color: Colors.white54, fontSize: 11, height: 1.4),
+                    style: TextStyle(color: hintColor, fontSize: 11, height: 1.4),
                   ),
                 ],
               ),

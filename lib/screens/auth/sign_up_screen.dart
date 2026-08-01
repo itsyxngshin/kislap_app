@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../services/database_helper.dart';
 import '../dashboard/dashboard_shell.dart';
@@ -15,16 +16,13 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
-  bool _obscurePassword = true;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   final TextEditingController _budgetController = TextEditingController();
-  final TextEditingController _tariffController = TextEditingController(
-    text: '11.08',
-  );
+  final TextEditingController _tariffController = TextEditingController(text: '12.35');
   String _householdSize = 'Small';
 
   @override
@@ -37,7 +35,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  // Validates the current step before allowing the user to proceed
   bool _validateCurrentStep() {
     if (_currentStep == 0) {
       if (_nameController.text.trim().isEmpty ||
@@ -73,10 +70,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final budget = double.tryParse(_budgetController.text) ?? 0.0;
-    final tariff = double.tryParse(_tariffController.text) ?? 11.08;
+    final tariff = double.tryParse(_tariffController.text) ?? 12.35;
 
     try {
-      // 1. Send data to Supabase (Password is handled automatically by auth schema)
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
@@ -88,7 +84,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         },
       );
 
-      // 2. Save the baseline to the local SQLite engine
       final db = await DatabaseHelper.instance.database;
       await db.update(
         'user_settings',
@@ -101,16 +96,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
         whereArgs: [1],
       );
 
-      // 3. Navigate to OTP
       if (mounted) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const DashboardShell(),
-                ),
-                (route) => false, // This destroys the back-stack
-              );
-            }
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const DashboardShell()),
+          (route) => false,
+        );
+      }
     } on AuthException catch (e) {
       if (mounted) _showError(e.message);
     } catch (e) {
@@ -122,29 +114,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     return Container(
-      decoration: AppColors.globalGradient,
+      decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: textColor),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text(
-            'Setup',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          title: Text(
+            'Account Setup',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
         ),
         body: Theme(
-          // Overrides the Stepper colors to match our dark theme
           data: Theme.of(context).copyWith(
             canvasColor: Colors.transparent,
-            colorScheme: const ColorScheme.dark(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
               primary: AppColors.appYellow,
-              onSurface: Colors.white,
+              onSurface: textColor,
             ),
           ),
           child: Stepper(
@@ -167,8 +162,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Navigator.pop(context);
               }
             },
-
-            // Custom Navigation Buttons
             controlsBuilder: (context, details) {
               final isLastStep = _currentStep == 2;
               return Padding(
@@ -214,9 +207,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(width: 12),
                       TextButton(
                         onPressed: _isLoading ? null : details.onStepCancel,
-                        child: const Text(
+                        child: Text(
                           'Back',
-                          style: TextStyle(color: AppColors.textHintColor),
+                          style: TextStyle(color: hintColor),
                         ),
                       ),
                     ],
@@ -224,23 +217,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               );
             },
-
-            // The 3 Registration Steps
-            // ... inside your Stepper widget ...
             steps: [
               Step(
-                title: const Text(
+                title: Text(
                   'Account Details',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                subtitle: const Text(
+                subtitle: Text(
                   'Your login credentials',
-                  style: TextStyle(color: AppColors.textHintColor),
+                  style: TextStyle(color: hintColor),
                 ),
                 isActive: _currentStep >= 0,
-                state: _currentStep > 0
-                    ? StepState.complete
-                    : StepState.indexed,
+                state: _currentStep > 0 ? StepState.complete : StepState.indexed,
                 content: Column(
                   children: [
                     const SizedBox(height: 10),
@@ -266,29 +254,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
               Step(
-                title: const Text(
+                title: Text(
                   'Financial Baseline',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                subtitle: const Text(
+                subtitle: Text(
                   'Optimization limits',
-                  style: TextStyle(color: AppColors.textHintColor),
+                  style: TextStyle(color: hintColor),
                 ),
                 isActive: _currentStep >= 1,
-                state: _currentStep > 1
-                    ? StepState.complete
-                    : StepState.indexed,
+                state: _currentStep > 1 ? StepState.complete : StepState.indexed,
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
-                    // GUIDED UI: Budget
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surface.withValues(alpha: 0.6),
+                        color: surfaceColor.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: AppColors.appYellow.withValues(alpha: 0.2),
@@ -306,10 +289,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'How much are you willing to spend on electricity this month?',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: hintColor,
                               fontSize: 12,
                               height: 1.4,
                             ),
@@ -327,14 +310,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     const SizedBox(height: 15),
-
-                    // GUIDED UI: Tariff Rate
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surface.withValues(alpha: 0.6),
+                        color: surfaceColor.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: AppColors.appYellow.withValues(alpha: 0.2),
@@ -352,10 +331,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'Check your latest electric bill (e.g., ALECO or CASURECO) for the exact ₱/kWh rate.',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: hintColor,
                               fontSize: 12,
                               height: 1.4,
                             ),
@@ -363,7 +342,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           const SizedBox(height: 12),
                           CustomTextField(
                             controller: _tariffController,
-                            hint: 'e.g. 11.08',
+                            hint: 'e.g. 12.35',
                             icon: Icons.bolt,
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
@@ -376,28 +355,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
               Step(
-                title: const Text(
+                title: Text(
                   'Household Class',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                subtitle: const Text(
+                subtitle: Text(
                   'Sets the kVA scale',
-                  style: TextStyle(color: AppColors.textHintColor),
+                  style: TextStyle(color: hintColor),
                 ),
                 isActive: _currentStep >= 2,
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'Select your setup size to enforce safe power distribution limits.',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: hintColor, fontSize: 12),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.inputBackground,
+                        color: surfaceColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -405,14 +384,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           _buildRadioOption(
                             'Small (0 - 5 kVA)',
                             'Basic appliances only. Fans, TV, fridge, and lights. Usually no air conditioning.',
+                            textColor, hintColor
                           ),
                           _buildRadioOption(
                             'Medium (6 - 15 kVA)',
                             'Standard home. 1-2 air conditioners, washing machine, fridge, and microwave.',
+                            textColor, hintColor
                           ),
                           _buildRadioOption(
                             'Large (16 - 25 kVA)',
                             'Heavy usage. Multiple split-type ACs, water heaters, heavy pumps, and large appliances.',
+                            textColor, hintColor
                           ),
                         ],
                       ),
@@ -427,7 +409,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildRadioOption(String title, String description) {
+  Widget _buildRadioOption(String title, String description, Color textColor, Color hintColor) {
     String value = title.split(' ').first;
     bool isSelected = _householdSize == value;
 
@@ -439,12 +421,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.white.withValues(alpha: 0.05)
+              ? textColor.withValues(alpha: 0.05)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? Colors.greenAccent.withValues(alpha: 0.3)
+                ? AppColors.appYellow.withValues(alpha: 0.4)
                 : Colors.transparent,
           ),
         ),
@@ -455,7 +437,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               isSelected
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
-              color: isSelected ? Colors.greenAccent : Colors.white54,
+              color: isSelected ? AppColors.appYellow : hintColor,
               size: 22,
             ),
             const SizedBox(width: 12),
@@ -466,18 +448,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   Text(
                     title,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
+                      color: isSelected ? textColor : hintColor,
                       fontSize: 15,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     description,
-                    style: const TextStyle(
-                      color: Colors.white54,
+                    style: TextStyle(
+                      color: hintColor,
                       fontSize: 12,
                       height: 1.4,
                     ),

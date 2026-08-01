@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
-import '../admin/admin_dashboard_screen.dart'; // <-- Import the admin screen
+import '../admin/admin_dashboard_screen.dart';
 import '../../services/sync_service.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -19,7 +20,6 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -48,10 +48,8 @@ class _SignInScreenState extends State<SignInScreen> {
       final user = authResponse.user;
 
       if (user != null) {
-        // 1. Merge any offline items the user just created into their cloud account
         await SyncService.mergeOfflineDataToCloud(user.id);
 
-        // 2. Safely fetch the profile data for role routing
         final profileData = await Supabase.instance.client
             .from('profiles')
             .select('role_id')
@@ -91,37 +89,50 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final hintColor = textColor.withValues(alpha: 0.6);
+
     return Container(
-      decoration: AppColors.globalGradient,
+      decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: textColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(30.0),
+            padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 10.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
                 const Icon(Icons.show_chart_rounded, size: 50, color: AppColors.appYellow),
                 const SizedBox(height: 20),
 
-                const Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
                 const SizedBox(height: 8),
-                const Text('Sign in to keep tracking your usage.', style: TextStyle(color: AppColors.textHintColor, fontSize: 14)),
+                Text('Sign in to keep tracking your usage.', style: TextStyle(color: hintColor, fontSize: 14)),
                 const SizedBox(height: 40),
 
-                const Text('Email', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text('Email', style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
                 const SizedBox(height: 20),
 
-                const Text('Password', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text('Password', style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
 
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(onPressed: () {}, child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13))),
+                  child: TextButton(
+                    onPressed: () {},
+                    child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13, fontWeight: FontWeight.bold)),
+                  ),
                 ),
                 const SizedBox(height: 10),
 
@@ -142,7 +153,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                const Center(child: Text('or continue with', style: TextStyle(color: AppColors.textHintColor, fontSize: 12))),
+                Center(child: Text('or continue with', style: TextStyle(color: hintColor, fontSize: 12))),
                 const SizedBox(height: 20),
 
                 Row(
@@ -157,11 +168,11 @@ class _SignInScreenState extends State<SignInScreen> {
                 Center(
                   child: GestureDetector(
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
-                    child: const Text.rich(
+                    child: Text.rich(
                       TextSpan(
                         text: 'New here? ',
-                        style: TextStyle(color: AppColors.textHintColor, fontSize: 13),
-                        children: [
+                        style: TextStyle(color: hintColor, fontSize: 13),
+                        children: const [
                           TextSpan(text: 'Create an Account', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold)),
                         ],
                       ),
