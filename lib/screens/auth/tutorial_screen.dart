@@ -15,7 +15,6 @@ class TutorialScreen extends ConsumerStatefulWidget {
 class _TutorialScreenState extends ConsumerState<TutorialScreen> {
   int _currentStep = 0;
 
-  // The step definitions containing bilingual text and which tab to show
   late final List<Map<String, dynamic>> _tutorialSteps;
 
   @override
@@ -57,7 +56,6 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     if (_currentStep < _tutorialSteps.length - 1) {
       setState(() => _currentStep++);
     } else {
-      // Mark tutorial as complete in SQLite and launch the real app
       await ref.read(settingsProvider.notifier).completeTutorial();
       if (mounted) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardShell()));
@@ -76,8 +74,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. THE DUMMY APP LAYER (Behind the overlay)
-          // We use IgnorePointer so the user can't click the fake buttons
+          // 1. THE DUMMY APP LAYER
           IgnorePointer(
             child: Scaffold(
               backgroundColor: Colors.transparent,
@@ -112,102 +109,103 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
             ),
           ),
 
-          // 2. THE TRANSLUCENT OVERLAY LAYER
+          // 2. THE TRANSLUCENT OVERLAY LAYER (Made lighter so UI is visible)
           Container(
-            color: Colors.black.withValues(alpha: 0.75),
+            color: Colors.black.withValues(alpha: 0.4),
             width: double.infinity,
             height: double.infinity,
           ),
 
-          // 3. THE INTERACTIVE TOOLTIP DIALOG
-          SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(animation),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Container(
-                    key: ValueKey<int>(_currentStep),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: surfaceColor,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5), width: 2),
-                      boxShadow: [
-                        BoxShadow(color: AppColors.appYellow.withValues(alpha: 0.2), blurRadius: 20, spreadRadius: 5)
-                      ],
+          // 3. THE REPOSITIONED TOOLTIP DIALOG
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              // Pinned 100px from the bottom to sit right above the navigation bar
+              padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 100.0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(animation),
+                      child: child,
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _getIconForStep(_currentStep),
-                          size: 48,
-                          color: AppColors.appYellow,
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          isPh ? _tutorialSteps[_currentStep]['title_ph'] : _tutorialSteps[_currentStep]['title_en'],
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: textColor, fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          isPh ? _tutorialSteps[_currentStep]['desc_ph'] : _tutorialSteps[_currentStep]['desc_en'],
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 14, height: 1.5),
-                        ),
-                        const SizedBox(height: 30),
+                  );
+                },
+                child: Container(
+                  key: ValueKey<int>(_currentStep),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5), width: 2),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, spreadRadius: 5)
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _getIconForStep(_currentStep),
+                            size: 32,
+                            color: AppColors.appYellow,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              isPh ? _tutorialSteps[_currentStep]['title_ph'] : _tutorialSteps[_currentStep]['title_en'],
+                              style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        isPh ? _tutorialSteps[_currentStep]['desc_ph'] : _tutorialSteps[_currentStep]['desc_en'],
+                        style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 14, height: 1.5),
+                      ),
+                      const SizedBox(height: 20),
 
-                        // Progress Dots
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            _tutorialSteps.length,
-                            (index) => AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              height: 8,
-                              width: _currentStep == index ? 24 : 8,
-                              decoration: BoxDecoration(
-                                color: _currentStep == index ? AppColors.appYellow : Colors.grey.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: List.generate(
+                              _tutorialSteps.length,
+                              (index) => AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                margin: const EdgeInsets.only(right: 6),
+                                height: 6,
+                                width: _currentStep == index ? 20 : 6,
+                                decoration: BoxDecoration(
+                                  color: _currentStep == index ? AppColors.appYellow : Colors.grey.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Action Button
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
+                          FilledButton(
                             onPressed: _nextStep,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.appYellow,
                               foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             child: Text(
                               _currentStep == _tutorialSteps.length - 1
-                                ? (isPh ? 'Pumasok sa App' : 'Enter App')
+                                ? (isPh ? 'Pumasok' : 'Enter App')
                                 : (isPh ? 'Susunod' : 'Next'),
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -319,6 +317,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('HOW KISLAP COMPUTES', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
