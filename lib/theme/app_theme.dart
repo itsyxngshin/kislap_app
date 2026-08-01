@@ -6,10 +6,10 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF8FAFC), // Cool off-white
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
       colorScheme: const ColorScheme.light(
         surface: Colors.white,
-        onSurface: Color(0xFF0F172A), // Deep slate for highly readable text
+        onSurface: Color(0xFF0F172A),
         primary: AppColors.appYellow,
       ),
       fontFamily: 'Inter',
@@ -20,7 +20,7 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B0F19), // Deepest space black
+      scaffoldBackgroundColor: const Color(0xFF0B0F19),
       colorScheme: const ColorScheme.dark(
         surface: Color(0xFF1E293B),
         onSurface: Colors.white,
@@ -41,18 +41,18 @@ class AppTheme {
         radius: 2.0,
         colors: isDark
             ? [
-                const Color(0xFF1E293B), // Soft slate glow
-                const Color(0xFF0B0F19), // Deep background
-                AppColors.appYellow.withValues(alpha: 0.05), // Subtle tricolor hints
-                Colors.orange.withValues(alpha: 0.03),
-                Colors.redAccent.withValues(alpha: 0.02),
+                const Color(0xFF1E293B),
+                const Color(0xFF0B0F19),
+                AppColors.appYellow.withOpacity(0.05),
+                Colors.orange.withOpacity(0.03),
+                Colors.redAccent.withOpacity(0.02),
               ]
             : [
-                Colors.white, // Bright origin
-                const Color(0xFFF1F5F9), // Soft transition
-                AppColors.appYellow.withValues(alpha: 0.08), // Warm, vibrant ambient light
-                Colors.greenAccent.withValues(alpha: 0.03),
-                Colors.orange.withValues(alpha: 0.04),
+                Colors.white,
+                const Color(0xFFF1F5F9),
+                AppColors.appYellow.withOpacity(0.08),
+                Colors.greenAccent.withOpacity(0.03),
+                Colors.orange.withOpacity(0.04),
               ],
         stops: const [0.0, 0.4, 0.7, 0.85, 1.0],
       ),

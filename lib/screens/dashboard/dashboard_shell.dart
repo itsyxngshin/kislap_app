@@ -25,22 +25,19 @@ class DashboardShell extends ConsumerStatefulWidget {
 class _DashboardShellState extends ConsumerState<DashboardShell> {
   int _currentIndex = 0;
 
-  // The screens driven by the navigation bar
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    DevicesScreen(),
-    AnalysisScreen(),
-    ReportsScreen(),
-    SettingsScreen(),
+  // FIX: Removed 'const' keyword here
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const DevicesScreen(),
+    const AnalysisScreen(),
+    const ReportsScreen(),
+    const SettingsScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    // 1. Run security & maintenance checks immediately
     _checkSystemStatus();
-
-    // 2. Check for first-time tutorial prompt with a slight delay for Web/Vercel stabilization
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) _showTutorialPrompt();
     });
@@ -53,7 +50,6 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
 
       if (user == null) return;
 
-      // 1. Safely Check Global Maintenance Mode
       final settings = await supabase.from('app_settings').select().eq('id', 1).maybeSingle();
 
       if (settings != null && settings['is_maintenance_mode'] == true) {
@@ -71,7 +67,6 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
         return;
       }
 
-      // 2. Safely Check Individual Client Account Status
       final profile = await supabase.from('profiles').select('is_active').eq('id', user.id).maybeSingle();
 
       if (profile != null && profile['is_active'] == false) {
@@ -99,7 +94,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
       final settings = await db.query('user_settings', limit: 1);
       if (settings.isNotEmpty) {
         final isFirstTime = (settings.first['is_first_time'] as int?) ?? 1;
-        if (isFirstTime != 1) return; // Exit if user has already seen/skipped tutorial
+        if (isFirstTime != 1) return;
       }
     } catch (_) {
       return;

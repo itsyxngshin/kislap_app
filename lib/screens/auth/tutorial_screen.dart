@@ -14,7 +14,6 @@ class TutorialScreen extends ConsumerStatefulWidget {
 
 class _TutorialScreenState extends ConsumerState<TutorialScreen> {
   int _currentStep = 0;
-
   late final List<Map<String, dynamic>> _tutorialSteps;
 
   @override
@@ -68,14 +67,13 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     final isPh = ref.watch(settingsProvider).language == 'ph';
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
 
     final currentTab = _tutorialSteps[_currentStep]['tab'] as int;
 
     return Scaffold(
       body: Stack(
         children: [
-          // 1. THE DUMMY APP LAYER
           IgnorePointer(
             child: Scaffold(
               backgroundColor: Colors.transparent,
@@ -94,11 +92,12 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                 ),
               ),
               bottomNavigationBar: Container(
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: textColor.withValues(alpha: 0.05), width: 1))),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: textColor.withOpacity(0.05), width: 1))),
                 child: NavigationBar(
                   selectedIndex: currentTab,
                   backgroundColor: surfaceColor,
-                  indicatorColor: AppColors.appYellow.withValues(alpha: 0.2),
+                  indicatorColor: AppColors.appYellow.withOpacity(0.2),
+                  // FIX: Removed 'const' from array
                   destinations: [
                     NavigationDestination(icon: Icon(Icons.home_outlined, color: hintColor), selectedIcon: const Icon(Icons.home, color: AppColors.appYellow), label: isPh ? 'Buod' : 'Home'),
                     NavigationDestination(icon: Icon(Icons.electrical_services_outlined, color: hintColor), selectedIcon: const Icon(Icons.electrical_services, color: AppColors.appYellow), label: isPh ? 'Mga Gamit' : 'Devices'),
@@ -110,14 +109,12 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
             ),
           ),
 
-          // 2. THE TRANSLUCENT OVERLAY LAYER
           Container(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: Colors.black.withOpacity(0.4),
             width: double.infinity,
             height: double.infinity,
           ),
 
-          // 3. THE REPOSITIONED TOOLTIP DIALOG
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -139,9 +136,9 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                   decoration: BoxDecoration(
                     color: surfaceColor,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5), width: 2),
+                    border: Border.all(color: AppColors.appYellow.withOpacity(0.5), width: 2),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, spreadRadius: 5)
+                      BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, spreadRadius: 5)
                     ],
                   ),
                   child: Column(
@@ -166,7 +163,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                       const SizedBox(height: 12),
                       Text(
                         isPh ? _tutorialSteps[_currentStep]['desc_ph'] : _tutorialSteps[_currentStep]['desc_en'],
-                        style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 14, height: 1.5),
+                        style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 14, height: 1.5),
                       ),
                       const SizedBox(height: 20),
 
@@ -182,7 +179,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                                 height: 6,
                                 width: _currentStep == index ? 20 : 6,
                                 decoration: BoxDecoration(
-                                  color: _currentStep == index ? AppColors.appYellow : Colors.grey.withValues(alpha: 0.4),
+                                  color: _currentStep == index ? AppColors.appYellow : Colors.grey.withOpacity(0.4),
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
@@ -226,10 +223,6 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
     }
   }
 
-  // =========================================================================
-  // DUMMY SCREEN BUILDERS (Visual Replicas of the App)
-  // =========================================================================
-
   Widget _buildDummyHome(Color surfaceColor, Color textColor, Color hintColor, bool isPh) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -241,9 +234,9 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: surfaceColor.withValues(alpha: 0.6),
+              color: surfaceColor.withOpacity(0.6),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +262,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -285,7 +278,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(20), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -325,9 +318,9 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.appYellow.withValues(alpha: 0.1),
+              color: AppColors.appYellow.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.appYellow.withOpacity(0.3)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,7 +332,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                     isPh
                       ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock (🔓) ang iba para sa awtomatikong pag-optimize ng budget.'
                       : 'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
-                    style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 12, height: 1.4),
+                    style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 12, height: 1.4),
                   ),
                 ),
               ],
@@ -363,7 +356,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           const SizedBox(height: 25),
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
             child: Row(
               children: [
                 const Icon(Icons.trending_down, color: Colors.greenAccent, size: 28),
@@ -375,15 +368,15 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isPh ? 'PAANO KINAKALKULA NG KISLAP' : 'HOW KISLAP COMPUTES', style: const TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
+                const Text('HOW KISLAP COMPUTES', style: TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: textColor.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
                   child: const Text('(Wattage ÷ 1000) × Hours', style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
                 ),
               ],
@@ -404,12 +397,12 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           const SizedBox(height: 25),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+            decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
             child: Row(
               children: [
                 Container(
                   height: 56, width: 56,
-                  decoration: BoxDecoration(color: AppColors.appYellow.withValues(alpha: 0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5))),
+                  decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withOpacity(0.5))),
                   child: const Center(child: Text('K', style: TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold))),
                 ),
                 const SizedBox(width: 15),
@@ -427,7 +420,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
           const SizedBox(height: 35),
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -435,7 +428,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: textColor.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
                   child: Text('₱ 1500.00', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 16),
@@ -443,7 +436,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity, padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: textColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: textColor.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
                   child: Text('₱ 12.35 / kWh', style: TextStyle(color: textColor, fontSize: 16)),
                 ),
               ],
@@ -459,7 +452,7 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
       children: [
         Container(
           height: 60, width: 60,
-          decoration: BoxDecoration(color: isPrimary ? Colors.orange.shade600 : surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(color: isPrimary ? Colors.orange.shade600 : surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
           child: Icon(icon, color: isPrimary ? Colors.white : hintColor, size: 28),
         ),
         const SizedBox(height: 8),
@@ -473,15 +466,15 @@ class _TutorialScreenState extends ConsumerState<TutorialScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceColor.withValues(alpha: 0.5),
+        color: surfaceColor.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : textColor.withValues(alpha: 0.05)),
+        border: Border.all(color: isLocked ? AppColors.appYellow.withOpacity(0.4) : textColor.withOpacity(0.05)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withValues(alpha: 0.1) : textColor.withValues(alpha: 0.05), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: isLocked ? AppColors.appYellow.withOpacity(0.1) : textColor.withOpacity(0.05), shape: BoxShape.circle),
             child: Icon(isLocked ? Icons.ac_unit : Icons.electrical_services, color: isLocked ? AppColors.appYellow : hintColor, size: 20),
           ),
           const SizedBox(width: 15),
