@@ -8,7 +8,7 @@ import '../auth/sign_in_screen.dart';
 import '../../services/database_helper.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
-import '../../providers/settings_provider.dart'; // <-- Added Provider
+import '../../providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -96,20 +96,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final double tariff = double.tryParse(_tariffController.text) ?? 0.0;
       final db = await DatabaseHelper.instance.database;
 
-      await db.insert('user_settings', {
-        'id': 1,
-        'monthly_budget': budget,
-        'tariff_rate': tariff,
-        'household_size': _householdSize,
-        'language': ref.read(settingsProvider).language, // Retain settings
-        'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      // THE FIX: Use db.update to safely modify specific columns without wiping the entire row.
+      await db.update(
+        'user_settings',
+        {
+          'monthly_budget': budget,
+          'tariff_rate': tariff,
+          'household_size': _householdSize,
+          'language': ref.read(settingsProvider).language,
+          'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
+        },
+        where: 'id = ?',
+        whereArgs: [1],
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.read(settingsProvider).language == 'ph' ? 'Na-save na!' : 'Configuration saved!'), backgroundColor: Colors.green));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error saving'), backgroundColor: AppColors.adminRed));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -139,7 +144,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           builder: (context, setModalState) {
             return Container(
               padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24, left: 24, right: 24, top: 24),
-              decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.95), borderRadius: const BorderRadius.vertical(top: Radius.circular(24)), border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3))),
+              decoration: BoxDecoration(color: surfaceColor.withOpacity(0.95), borderRadius: const BorderRadius.vertical(top: Radius.circular(24)), border: Border.all(color: AppColors.appYellow.withOpacity(0.3))),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +235,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
 
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     final isPh = ref.watch(settingsProvider).language == 'ph';
@@ -256,12 +261,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // 1. Profile Header
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Row(
                     children: [
                       Container(
                         height: 56, width: 56,
-                        decoration: BoxDecoration(color: AppColors.appYellow.withValues(alpha: 0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.5))),
+                        decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withOpacity(0.5))),
                         child: Center(child: Text(_fullName.isNotEmpty ? _fullName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold))),
                       ),
                       const SizedBox(width: 15),
@@ -286,7 +291,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: AppColors.appYellow.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.4))),
+                    decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.appYellow.withOpacity(0.4))),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -297,13 +302,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             Expanded(
                               child: Text(
                                 isPh ? 'Kung inilapat mo ang halaga mula noong ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) sa iyong kasalukuyang konsumo (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):' : 'If you applied your rate from ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) to your current optimized setup (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):',
-                                style: TextStyle(color: textColor.withValues(alpha: 0.9), fontSize: 12, height: 1.4),
+                                style: TextStyle(color: textColor.withOpacity(0.9), fontSize: 12, height: 1.4),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Text(isPh ? 'Est. na Bayarin' : 'Projected Bill', style: TextStyle(color: AppColors.appYellow.withValues(alpha: 0.8), fontSize: 11)),
+                        Text(isPh ? 'Est. na Bayarin' : 'Projected Bill', style: TextStyle(color: AppColors.appYellow.withOpacity(0.8), fontSize: 11)),
                         Text('₱${(optimizedMonthlyKwh * _periods.first['billing_rate']).toStringAsFixed(2)}', style: TextStyle(color: textColor, fontSize: 28, fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -316,7 +321,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -331,7 +336,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        decoration: BoxDecoration(color: AppColors.appYellow.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3))),
+                        decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.appYellow.withOpacity(0.3))),
                         child: Row(
                           children: [
                             const Icon(Icons.calendar_today_outlined, color: AppColors.appYellow, size: 20),
@@ -356,7 +361,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Column(
                     children: [
                       _buildRadioOption('Small (0 - 5 kVA)', 'Small', isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, etc.', textColor, hintColor),
@@ -394,7 +399,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.3), borderRadius: BorderRadius.circular(16)),
                     child: Text(isPh ? 'Wala pang naitalang nakaraang bill.' : 'No past billing periods recorded.', textAlign: TextAlign.center, style: TextStyle(color: hintColor, fontSize: 14)),
                   )
                 else
@@ -407,7 +412,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                        decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -432,7 +437,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: ref.watch(settingsProvider).language,
@@ -454,7 +459,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(isPh ? 'HITSURA' : 'APPEARANCE', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Container(
-                  decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withValues(alpha: 0.05))),
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: _buildSwitchOption(
                     title: isPh ? 'Madilim na Mode' : 'Dark Mode',
                     icon: ref.watch(settingsProvider).themeMode == ThemeMode.dark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
@@ -472,7 +477,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onPressed: _email == 'Offline Mode' || _email == 'Local Offline Mode' ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen())) : _signOut,
                     icon: Icon(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? Icons.cloud_upload_outlined : Icons.logout, color: hintColor),
                     label: Text(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? (isPh ? 'Mag-sign in upang I-sync' : 'Sign in to Sync') : (isPh ? 'Mag-log out' : 'Sign out'), style: TextStyle(color: hintColor, fontSize: 15)),
-                    style: OutlinedButton.styleFrom(side: BorderSide(color: hintColor.withValues(alpha: 0.3)), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: hintColor.withOpacity(0.3)), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   ),
                 ),
               ],
@@ -491,7 +496,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(color: isSelected ? textColor.withValues(alpha: 0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? AppColors.appYellow.withValues(alpha: 0.3) : Colors.transparent)),
+        decoration: BoxDecoration(color: isSelected ? textColor.withOpacity(0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? AppColors.appYellow.withOpacity(0.3) : Colors.transparent)),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -525,7 +530,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Text(title, style: TextStyle(color: textColor, fontSize: 14)),
             ],
           ),
-          Switch(value: value, onChanged: onChanged, activeThumbColor: AppColors.appYellow, inactiveThumbColor: textColor.withValues(alpha: 0.5), inactiveTrackColor: textColor.withValues(alpha: 0.1)),
+          Switch(value: value, onChanged: onChanged, activeThumbColor: AppColors.appYellow, inactiveThumbColor: textColor.withOpacity(0.5), inactiveTrackColor: textColor.withOpacity(0.1)),
         ],
       ),
     );
