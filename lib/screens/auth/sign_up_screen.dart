@@ -25,6 +25,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _tariffController = TextEditingController(text: '12.35');
   String _householdSize = 'Small';
 
+  // NEW: Calculates the previous month dynamically (M-1)
+  String _getPreviousBillingMonth() {
+    final now = DateTime.now();
+    int prevMonth = now.month - 1;
+    int prevYear = now.year;
+    if (prevMonth == 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+    final monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return '${monthsEn[prevMonth - 1]} $prevYear';
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -37,9 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   bool _validateCurrentStep() {
     if (_currentStep == 0) {
-      if (_nameController.text.trim().isEmpty ||
-          _emailController.text.trim().isEmpty ||
-          _passwordController.text.trim().isEmpty) {
+      if (_nameController.text.trim().isEmpty || _emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
         _showError('Please fill out all account details.');
         return false;
       }
@@ -58,9 +69,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.adminRed),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.adminRed));
   }
 
   Future<void> _submitRegistration() async {
@@ -76,32 +85,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'full_name': name,
-          'monthly_budget': budget,
-          'tariff_rate': tariff,
-          'household_size': _householdSize,
-        },
+        data: {'full_name': name, 'monthly_budget': budget, 'tariff_rate': tariff, 'household_size': _householdSize},
       );
 
       final db = await DatabaseHelper.instance.database;
       await db.update(
         'user_settings',
-        {
-          'monthly_budget': budget,
-          'tariff_rate': tariff,
-          'household_size': _householdSize,
-        },
+        {'monthly_budget': budget, 'tariff_rate': tariff, 'household_size': _householdSize},
         where: 'id = ?',
         whereArgs: [1],
       );
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardShell()),
-          (route) => false,
-        );
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
       }
     } on AuthException catch (e) {
       if (mounted) _showError(e.message);
@@ -115,7 +111,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     return Container(
@@ -125,22 +121,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: textColor),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            'Account Setup',
-            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-          ),
+          leading: IconButton(icon: Icon(Icons.arrow_back, color: textColor), onPressed: () => Navigator.pop(context)),
+          title: Text('Account Setup', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
         ),
         body: Theme(
           data: Theme.of(context).copyWith(
             canvasColor: Colors.transparent,
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: AppColors.appYellow,
-              onSurface: textColor,
-            ),
+            colorScheme: Theme.of(context).colorScheme.copyWith(primary: AppColors.appYellow, onSurface: textColor),
           ),
           child: Stepper(
             type: StepperType.vertical,
@@ -148,19 +135,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
             elevation: 0,
             onStepContinue: () {
               if (_validateCurrentStep()) {
-                if (_currentStep < 2) {
-                  setState(() => _currentStep += 1);
-                } else {
-                  _submitRegistration();
-                }
+                if (_currentStep < 2) setState(() => _currentStep += 1);
+                else _submitRegistration();
               }
             },
             onStepCancel: () {
-              if (_currentStep > 0) {
-                setState(() => _currentStep -= 1);
-              } else {
-                Navigator.pop(context);
-              }
+              if (_currentStep > 0) setState(() => _currentStep -= 1);
+              else Navigator.pop(context);
             },
             controlsBuilder: (context, details) {
               final isLastStep = _currentStep == 2;
@@ -172,46 +153,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: FilledButton(
                         onPressed: _isLoading ? null : details.onStepContinue,
                         style: FilledButton.styleFrom(
-                          backgroundColor: isLastStep
-                              ? Colors.orange.shade700
-                              : AppColors.appYellow,
-                          foregroundColor: isLastStep
-                              ? Colors.white
-                              : Colors.black87,
+                          backgroundColor: isLastStep ? Colors.orange.shade700 : AppColors.appYellow,
+                          foregroundColor: isLastStep ? Colors.white : Colors.black87,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                isLastStep
-                                    ? 'Complete Registration'
-                                    : 'Continue',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text(isLastStep ? 'Complete Registration' : 'Continue', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     if (_currentStep > 0) ...[
                       const SizedBox(width: 12),
-                      TextButton(
-                        onPressed: _isLoading ? null : details.onStepCancel,
-                        child: Text(
-                          'Back',
-                          style: TextStyle(color: hintColor),
-                        ),
-                      ),
+                      TextButton(onPressed: _isLoading ? null : details.onStepCancel, child: Text('Back', style: TextStyle(color: hintColor))),
                     ],
                   ],
                 ),
@@ -219,49 +173,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
             },
             steps: [
               Step(
-                title: Text(
-                  'Account Details',
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Your login credentials',
-                  style: TextStyle(color: hintColor),
-                ),
+                title: Text('Account Details', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                subtitle: Text('Your login credentials', style: TextStyle(color: hintColor)),
                 isActive: _currentStep >= 0,
                 state: _currentStep > 0 ? StepState.complete : StepState.indexed,
                 content: Column(
                   children: [
                     const SizedBox(height: 10),
-                    CustomTextField(
-                      controller: _nameController,
-                      hint: 'Full Name',
-                      icon: Icons.person_outline,
-                    ),
+                    CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
                     const SizedBox(height: 15),
-                    CustomTextField(
-                      controller: _emailController,
-                      hint: 'name@email.com',
-                      icon: Icons.email_outlined,
-                    ),
+                    CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
                     const SizedBox(height: 15),
-                    CustomTextField(
-                      controller: _passwordController,
-                      hint: 'Create a password',
-                      icon: Icons.lock_outline,
-                      isPassword: true,
-                    ),
+                    CustomTextField(controller: _passwordController, hint: 'Create a password', icon: Icons.lock_outline, isPassword: true),
                   ],
                 ),
               ),
               Step(
-                title: Text(
-                  'Financial Baseline',
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Optimization limits',
-                  style: TextStyle(color: hintColor),
-                ),
+                title: Text('Financial Baseline', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                subtitle: Text('Optimization limits', style: TextStyle(color: hintColor)),
                 isActive: _currentStep >= 1,
                 state: _currentStep > 1 ? StepState.complete : StepState.indexed,
                 content: Column(
@@ -270,84 +199,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: surfaceColor.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.appYellow.withValues(alpha: 0.2),
-                        ),
-                      ),
+                      decoration: BoxDecoration(color: surfaceColor.withOpacity(0.6), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.appYellow.withOpacity(0.2))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Target Budget',
-                            style: TextStyle(
-                              color: AppColors.appYellow,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
+                          const Text('Target Budget', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 4),
-                          Text(
-                            'How much are you willing to spend on electricity this month?',
-                            style: TextStyle(
-                              color: hintColor,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                          ),
+                          Text('How much are you willing to spend on electricity this month?', style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
                           const SizedBox(height: 12),
-                          CustomTextField(
-                            controller: _budgetController,
-                            hint: 'e.g. 1500',
-                            icon: Icons.account_balance_wallet_outlined,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                          ),
+                          CustomTextField(controller: _budgetController, hint: 'e.g. 1500', icon: Icons.account_balance_wallet_outlined, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 15),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: surfaceColor.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppColors.appYellow.withValues(alpha: 0.2),
-                        ),
-                      ),
+                      decoration: BoxDecoration(color: surfaceColor.withOpacity(0.6), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.appYellow.withOpacity(0.2))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Utility Rate',
-                            style: TextStyle(
-                              color: AppColors.appYellow,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
+                          // EXPLICIT M-1 PROMPT
+                          const Text('Previous Utility Rate', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 4),
-                          Text(
-                            'Check your latest electric bill (e.g., ALECO or CASURECO) for the exact ₱/kWh rate.',
-                            style: TextStyle(
-                              color: hintColor,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                          ),
+                          Text('Check your electric bill from ${_getPreviousBillingMonth()} for the exact ₱/kWh rate.', style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
                           const SizedBox(height: 12),
-                          CustomTextField(
-                            controller: _tariffController,
-                            hint: 'e.g. 12.35',
-                            icon: Icons.bolt,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                          ),
+                          CustomTextField(controller: _tariffController, hint: 'e.g. 12.35', icon: Icons.bolt, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                         ],
                       ),
                     ),
@@ -355,47 +231,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
               Step(
-                title: Text(
-                  'Household Class',
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Sets the kVA scale',
-                  style: TextStyle(color: hintColor),
-                ),
+                title: Text('Household Class', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                subtitle: Text('Sets the kVA scale', style: TextStyle(color: hintColor)),
                 isActive: _currentStep >= 2,
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 10),
-                    Text(
-                      'Select your setup size to enforce safe power distribution limits.',
-                      style: TextStyle(color: hintColor, fontSize: 12),
-                    ),
+                    Text('Select your setup size to enforce safe power distribution limits.', style: TextStyle(color: hintColor, fontSize: 12)),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: surfaceColor.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
                       child: Column(
                         children: [
-                          _buildRadioOption(
-                            'Small (0 - 5 kVA)',
-                            'Basic appliances only. Fans, TV, fridge, and lights. Usually no air conditioning.',
-                            textColor, hintColor
-                          ),
-                          _buildRadioOption(
-                            'Medium (6 - 15 kVA)',
-                            'Standard home. 1-2 air conditioners, washing machine, fridge, and microwave.',
-                            textColor, hintColor
-                          ),
-                          _buildRadioOption(
-                            'Large (16 - 25 kVA)',
-                            'Heavy usage. Multiple split-type ACs, water heaters, heavy pumps, and large appliances.',
-                            textColor, hintColor
-                          ),
+                          _buildRadioOption('Small (0 - 5 kVA)', 'Basic appliances only. Fans, TV, fridge, and lights.', textColor, hintColor),
+                          _buildRadioOption('Medium (6 - 15 kVA)', 'Standard home. 1-2 air conditioners, washing machine, fridge, etc.', textColor, hintColor),
+                          _buildRadioOption('Large (16 - 25 kVA)', 'Heavy usage. Multiple split-type ACs, water heaters, large appliances.', textColor, hintColor),
                         ],
                       ),
                     ),
@@ -420,48 +272,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected
-              ? textColor.withValues(alpha: 0.05)
-              : Colors.transparent,
+          color: isSelected ? textColor.withOpacity(0.05) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.appYellow.withValues(alpha: 0.4)
-                : Colors.transparent,
-          ),
+          border: Border.all(color: isSelected ? AppColors.appYellow.withOpacity(0.4) : Colors.transparent),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              color: isSelected ? AppColors.appYellow : hintColor,
-              size: 22,
-            ),
+            Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: isSelected ? AppColors.appYellow : hintColor, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: isSelected ? textColor : hintColor,
-                      fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
+                  Text(title, style: TextStyle(color: isSelected ? textColor : hintColor, fontSize: 15, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                   const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      color: hintColor,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
+                  Text(description, style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
                 ],
               ),
             ),

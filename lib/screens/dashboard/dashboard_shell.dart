@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_theme.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 import '../auth/lockdown_screen.dart';
@@ -25,7 +24,6 @@ class DashboardShell extends ConsumerStatefulWidget {
 class _DashboardShellState extends ConsumerState<DashboardShell> {
   int _currentIndex = 0;
 
-  // FIX: Removed 'const' keyword here
   final List<Widget> _screens = [
     const HomeScreen(),
     const DevicesScreen(),
@@ -169,38 +167,36 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     final hintColor = textColor.withOpacity(0.6);
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
-    return Container(
-      decoration: AppTheme.globalBackground(context),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
-        ),
-        bottomNavigationBar: Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                height: 70,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: textColor.withOpacity(0.1), width: 1),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem(Icons.home_outlined, Icons.home, isPh ? 'Buod' : 'Home', 0, textColor, hintColor),
-                    _buildNavItem(Icons.electrical_services_outlined, Icons.electrical_services, isPh ? 'Mga Gamit' : 'Devices', 1, textColor, hintColor),
-                    _buildNavItem(Icons.show_chart, Icons.show_chart_rounded, isPh ? 'Pagsusuri' : 'Analysis', 2, textColor, hintColor),
-                    _buildNavItem(Icons.receipt_long_outlined, Icons.receipt_long, isPh ? 'Mga Ulat' : 'Reports', 3, textColor, hintColor),
-                    _buildNavItem(Icons.settings_outlined, Icons.settings, isPh ? 'Setting' : 'Settings', 4, textColor, hintColor),
-                  ],
-                ),
+    // REMOVED AppTheme.globalBackground Container. Returning standard Scaffold.
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      extendBody: true,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              height: 70,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: textColor.withOpacity(0.1), width: 1),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.home_outlined, Icons.home, isPh ? 'Buod' : 'Home', 0, textColor, hintColor),
+                  _buildNavItem(Icons.electrical_services_outlined, Icons.electrical_services, isPh ? 'Mga Gamit' : 'Devices', 1, textColor, hintColor),
+                  _buildNavItem(Icons.show_chart, Icons.show_chart_rounded, isPh ? 'Pagsusuri' : 'Analysis', 2, textColor, hintColor),
+                  _buildNavItem(Icons.receipt_long_outlined, Icons.receipt_long, isPh ? 'Mga Ulat' : 'Reports', 3, textColor, hintColor),
+                  _buildNavItem(Icons.settings_outlined, Icons.settings, isPh ? 'Setting' : 'Settings', 4, textColor, hintColor),
+                ],
               ),
             ),
           ),

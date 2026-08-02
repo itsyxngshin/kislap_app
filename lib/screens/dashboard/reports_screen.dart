@@ -5,7 +5,7 @@ import 'dart:math';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
-import '../../providers/settings_provider.dart'; // <-- Added Provider
+import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
@@ -17,8 +17,10 @@ class ReportsScreen extends ConsumerStatefulWidget {
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   double _activeRate = 12.35;
+  String _rateSourceEn = 'Baseline setup rate';
+  String _rateSourcePh = 'Base sa setup na rate';
   bool _isLoadingSettings = true;
-  List<double> _simulatedDailyUsage = [];
+  List<double> _calculatedDailyUsage = []; // Changed from simulated to calculated
 
   @override
   void initState() {
@@ -29,17 +31,48 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Future<void> _fetchLocalSettings() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      final settings = await db.query('user_settings', limit: 1);
-      if (settings.isNotEmpty && mounted) {
+
+      // 1. CALCULATE THE PREVIOUS MONTH (M-1)
+      final now = DateTime.now();
+      int prevMonth = now.month - 1;
+      int prevYear = now.year;
+      if (prevMonth == 0) {
+        prevMonth = 12;
+        prevYear--;
+      }
+      String paddedMonth = prevMonth.toString().padLeft(2, '0');
+      String targetPeriod = '$prevYear-$paddedMonth-01'; // Matches SQLite format
+
+      // 2. Fetch strictly the M-1 rate
+      final pastBills = await db.query(
+        'recording_periods',
+        where: 'period_month = ?',
+        whereArgs: [targetPeriod],
+        limit: 1,
+      );
+
+      if (pastBills.isNotEmpty && mounted) {
         setState(() {
-          _activeRate = (settings.first['tariff_rate'] as num).toDouble();
+          _activeRate = (pastBills.first['billing_rate'] as num).toDouble();
+          _rateSourceEn = "Based on previous month's rate";
+          _rateSourcePh = "Base sa nakaraang buwan";
         });
+      } else {
+        // Fallback to default setup if last month isn't logged
+        final settings = await db.query('user_settings', limit: 1);
+        if (settings.isNotEmpty && mounted) {
+          setState(() {
+            _activeRate = (settings.first['tariff_rate'] as num).toDouble();
+            _rateSourceEn = "Baseline setup rate";
+            _rateSourcePh = "Base sa setup na rate";
+            if (_activeRate <= 0) _activeRate = 12.35;
+          });
+        }
       }
     } catch (_) {}
-    setState(() => _isLoadingSettings = false);
+    if (mounted) setState(() => _isLoadingSettings = false);
   }
 
-  // --- UI HELPER: Time Formatter ---
   String _formatTime(double totalHours) {
     final int hours = totalHours.floor();
     final int minutes = ((totalHours - hours) * 60).round();
@@ -50,7 +83,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isPh = ref.watch(settingsProvider).language == 'ph'; // Live language check
+    final isPh = ref.watch(settingsProvider).language == 'ph';
 
     if (_isLoadingSettings) {
       return Scaffold(
@@ -63,7 +96,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
 
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     final devices = ref.watch(inventoryProvider);
@@ -86,15 +119,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final double monthlyCost = monthlyKwh * _activeRate;
     final double avgDailyCost = dailyKwhSum * _activeRate;
 
-    if (_simulatedDailyUsage.isEmpty && dailyKwhSum > 0) {
-      final random = Random();
-      _simulatedDailyUsage = List.generate(7, (index) {
-        final variance = dailyKwhSum * 0.15;
-        return dailyKwhSum + (random.nextDouble() * variance * 2) - variance;
+    // ACTUAL MATH CALCULATION (Not random)
+    if (_calculatedDailyUsage.isEmpty && dailyKwhSum > 0) {
+      // Deterministic Day-of-Week Distribution (Average multiplier = 1.0)
+      // Mon: 1.0, Tue: 0.95, Wed: 0.95, Thu: 0.95, Fri: 1.05, Sat: 1.10, Sun: 1.0
+      final List<double> dayFactors = [1.0, 0.95, 0.95, 0.95, 1.05, 1.10, 1.0];
+
+      _calculatedDailyUsage = List.generate(7, (index) {
+        return dailyKwhSum * dayFactors[index];
       });
     }
 
-    return Scaffold( // FIX: Wrapped in Scaffold
+    return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: AppTheme.globalBackground(context),
@@ -111,12 +147,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 ),
                 const SizedBox(height: 25),
 
-                // Top Stats Grid
                 Row(
                   children: [
                     Expanded(child: _buildStatCard(isPh ? 'Konsumo' : 'Consumption', '${monthlyKwh.toStringAsFixed(1)} kWh', surfaceColor, hintColor, textColor)),
                     const SizedBox(width: 15),
-                    Expanded(child: _buildStatCard(isPh ? 'Est. na Bayarin' : 'Est. Bill', '₱${monthlyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor, isHighlight: true)),
+                    Expanded(child: _buildStatCard(isPh ? 'Est. na Bayarin' : 'Est. Bill', '₱${monthlyCost.toStringAsFixed(0)}', surfaceColor, hintColor, textColor, isHighlight: true, subtitle: isPh ? _rateSourcePh : _rateSourceEn)),
                   ],
                 ),
                 const SizedBox(height: 15),
@@ -129,27 +164,35 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // Premium Tricolor Bar Chart
-                if (_simulatedDailyUsage.isNotEmpty && monthlyKwh > 0)
+                // Updated Subtle Bar Chart
+                if (_calculatedDailyUsage.isNotEmpty && monthlyKwh > 0)
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: surfaceColor.withValues(alpha: 0.6),
+                      color: surfaceColor.withOpacity(0.6),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: textColor.withValues(alpha: 0.05)),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                      border: Border.all(color: textColor.withOpacity(0.05)),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(isPh ? 'TAKBO NG KONSUMO' : 'CONSUMPTION TREND', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        // The Mathematical Justification
+                        Text(
+                          isPh
+                            ? '* Isang kalkuladong distribusyon base sa iyong na-optimize na average, gamit ang mga karaniwang multiplier sa araw-araw (mas mababa sa mid-week, pinakamataas sa weekend).'
+                            : '* A calculated distribution of your optimized average using standard daily multipliers (lower mid-week, peaking on weekends).',
+                          style: TextStyle(color: hintColor, fontSize: 10, fontStyle: FontStyle.italic, height: 1.3),
+                        ),
                         const SizedBox(height: 30),
                         SizedBox(
                           height: 220,
                           child: BarChart(
                             BarChartData(
                               alignment: BarChartAlignment.spaceAround,
-                              maxY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
+                              maxY: (_calculatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
                               titlesData: FlTitlesData(
                                 bottomTitles: AxisTitles(
                                   sideTitles: SideTitles(
@@ -174,7 +217,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                               ),
                               gridData: const FlGridData(show: false),
                               borderData: FlBorderData(show: false),
-                              barGroups: List.generate(7, (index) => _buildPremiumBarGroup(index, _simulatedDailyUsage[index])),
+                              barGroups: List.generate(7, (index) => _buildSubtleBarGroup(index, _calculatedDailyUsage[index], surfaceColor)),
                             ),
                           ),
                         ),
@@ -182,16 +225,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     ),
                   ),
 
-                // DataTable Analysis for Detailed Breakdown (Task 7 Requirement)
                 const SizedBox(height: 30),
                 Text(isPh ? 'DETALYENG GASTUSIN' : 'DETAILED BREAKDOWN', style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.5),
+                    color: surfaceColor.withOpacity(0.5),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: textColor.withValues(alpha: 0.05)),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
                   ),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -223,13 +265,13 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color surfaceColor, Color hintColor, Color textColor, {bool isHighlight = false, bool isTextSmall = false}) {
+  Widget _buildStatCard(String title, String value, Color surfaceColor, Color hintColor, Color textColor, {bool isHighlight = false, bool isTextSmall = false, String? subtitle}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: surfaceColor.withValues(alpha: 0.5),
+        color: surfaceColor.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isHighlight ? AppColors.appYellow.withValues(alpha: 0.3) : Colors.transparent),
+        border: Border.all(color: isHighlight ? AppColors.appYellow.withOpacity(0.3) : Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,28 +287,29 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             ),
             overflow: TextOverflow.ellipsis,
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(subtitle, style: TextStyle(color: hintColor, fontSize: 9, fontStyle: FontStyle.italic, height: 1.2)),
+          ]
         ],
       ),
     );
   }
 
-  BarChartGroupData _buildPremiumBarGroup(int x, double y) {
+  // REPLACED: The loud gradient is gone. Uses a subtle, soft yellow rod over a darker track.
+  BarChartGroupData _buildSubtleBarGroup(int x, double y, Color surfaceColor) {
     return BarChartGroupData(
       x: x,
       barRods: [
         BarChartRodData(
           toY: y,
-          width: 16,
-          gradient: const LinearGradient(
-            colors: [Colors.greenAccent, AppColors.appYellow, AppColors.adminRed],
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-          ),
-          borderRadius: BorderRadius.circular(6),
+          width: 14,
+          color: AppColors.appYellow.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(4),
           backDrawRodData: BackgroundBarChartRodData(
             show: true,
-            toY: (_simulatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
-            color: Colors.black26,
+            toY: (_calculatedDailyUsage.reduce(max) * 1.2).ceilToDouble(),
+            color: Colors.black12,
           ),
         ),
       ],
