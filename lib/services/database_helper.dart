@@ -23,7 +23,7 @@ class DatabaseHelper {
       db = await factory.openDatabase(
         'kislap_web.db',
         options: OpenDatabaseOptions(
-          version: 3, // <-- BUMPED TO VERSION 3 to force the schema update
+          version: 5, // <-- BUMPED TO VERSION 5 to force the schema update
           onCreate: _onCreate,
           onUpgrade: _onUpgrade,
         ),
@@ -32,7 +32,7 @@ class DatabaseHelper {
       String path = join(await getDatabasesPath(), 'kislap.db');
       db = await openDatabase(
         path,
-        version: 3, // <-- BUMPED TO VERSION 3
+        version: 5, // <-- BUMPED TO VERSION 5
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       );
@@ -61,13 +61,12 @@ class DatabaseHelper {
             tariff_rate REAL NOT NULL,
             monthly_budget REAL NOT NULL,
             household_size TEXT,
-            language TEXT DEFAULT 'en',       -- Task 2: 'en' or 'ph'
-            theme_mode TEXT DEFAULT 'light',  -- Task 4: Default to light mode
-            is_first_time INTEGER DEFAULT 1   -- Task 8: Tutorial trigger
+            language TEXT DEFAULT 'en',
+            theme_mode TEXT DEFAULT 'light',
+            is_first_time INTEGER DEFAULT 1
           )
         ''');
 
-    // FIXED: Renamed to user_appliances and added preset_wattage to match the provider
     await db.execute('''
       CREATE TABLE IF NOT EXISTS user_appliances (
         id TEXT PRIMARY KEY,
@@ -95,10 +94,7 @@ class DatabaseHelper {
   // AUTOMATIC MIGRATION: Runs for existing users transitioning through versions
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // 1. Delete the outdated presets table
       await db.execute('DROP TABLE IF EXISTS appliance_presets');
-
-      // 2. Recreate the table fresh
       await db.execute('''
         CREATE TABLE appliance_presets (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,17 +103,11 @@ class DatabaseHelper {
           preset_wattage REAL NOT NULL
         )
       ''');
-
-      // 3. Inject the highly accurate client data
       await _seedPresets(db);
     }
 
-    // THE NEW MIGRATION FIX
     if (oldVersion < 3) {
-      // Clear out the mismatched table
       await db.execute('DROP TABLE IF EXISTS user_inventory');
-
-      // Create the correct table format for the inventory provider
       await db.execute('''
         CREATE TABLE IF NOT EXISTS user_appliances (
           id TEXT PRIMARY KEY,
@@ -131,11 +121,12 @@ class DatabaseHelper {
       ''');
     }
 
-    if (oldVersion < 4) {
-          await db.execute("ALTER TABLE user_settings ADD COLUMN language TEXT DEFAULT 'en'");
-          await db.execute("ALTER TABLE user_settings ADD COLUMN theme_mode TEXT DEFAULT 'light'");
-          await db.execute("ALTER TABLE user_settings ADD COLUMN is_first_time INTEGER DEFAULT 1");
-      }
+    // THE FIX: Safe column injection triggered by Version 5
+    if (oldVersion < 5) {
+      try { await db.execute("ALTER TABLE user_settings ADD COLUMN language TEXT DEFAULT 'en'"); } catch (_) {}
+      try { await db.execute("ALTER TABLE user_settings ADD COLUMN theme_mode TEXT DEFAULT 'light'"); } catch (_) {}
+      try { await db.execute("ALTER TABLE user_settings ADD COLUMN is_first_time INTEGER DEFAULT 1"); } catch (_) {}
+    }
   }
 
   // Fallback safety check (mainly for Vercel blank slates)
@@ -170,6 +161,7 @@ class DatabaseHelper {
       {'appliance_name': 'Laptop (Standard)', 'category': 'Electronics', 'preset_wattage': 47.5},
       {'appliance_name': 'Wi-Fi Router / Fiber Modem', 'category': 'Electronics', 'preset_wattage': 14.0},
       {'appliance_name': 'LED Light Bulb', 'category': 'Lighting', 'preset_wattage': 9.0},
+      {'appliance_name': 'Karaoke Speaker', 'category': 'Entertainment', 'preset_wattage': 100.0},
     ];
 
     Batch batch = db.batch();
