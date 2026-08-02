@@ -6,10 +6,10 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC), // Cool off-white
       colorScheme: const ColorScheme.light(
         surface: Colors.white,
-        onSurface: Color(0xFF0F172A),
+        onSurface: Color(0xFF0F172A), // Deep slate for highly readable text
         primary: AppColors.appYellow,
       ),
       fontFamily: 'Inter',
@@ -20,7 +20,7 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B0F19),
+      scaffoldBackgroundColor: const Color(0xFF0B0F19), // Deepest space black
       colorScheme: const ColorScheme.dark(
         surface: Color(0xFF1E293B),
         onSurface: Colors.white,
@@ -30,32 +30,10 @@ class AppTheme {
     );
   }
 
-  // Vibrant Ambient Background Graphic
+  // Solid Unified Background (Gradient Removed)
   static BoxDecoration globalBackground(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return BoxDecoration(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      gradient: RadialGradient(
-        center: const Alignment(-0.8, -0.6),
-        radius: 2.0,
-        colors: isDark
-            ? [
-                const Color(0xFF1E293B),
-                const Color(0xFF0B0F19),
-                AppColors.appYellow.withOpacity(0.05),
-                Colors.orange.withOpacity(0.03),
-                Colors.redAccent.withOpacity(0.02),
-              ]
-            : [
-                Colors.white,
-                const Color(0xFFF1F5F9),
-                AppColors.appYellow.withOpacity(0.08),
-                Colors.greenAccent.withOpacity(0.03),
-                Colors.orange.withOpacity(0.04),
-              ],
-        stops: const [0.0, 0.4, 0.7, 0.85, 1.0],
-      ),
+      color: Theme.of(context).scaffoldBackgroundColor, // Reverts to a pure, solid color
     );
   }
 }
