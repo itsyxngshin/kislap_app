@@ -23,7 +23,7 @@ class DatabaseHelper {
       db = await factory.openDatabase(
         'kislap_web.db',
         options: OpenDatabaseOptions(
-          version: 7, // <-- BUMPED TO VERSION 6 for the Quantity column
+          version: 8, // <-- BUMP TO 8
           onCreate: _onCreate,
           onUpgrade: _onUpgrade,
         ),
@@ -32,7 +32,7 @@ class DatabaseHelper {
       String path = join(await getDatabasesPath(), 'kislap.db');
       db = await openDatabase(
         path,
-        version: 6, // <-- BUMPED TO VERSION 6
+        version: 8, // <-- BUMP TO 8
         onCreate: _onCreate,
         onUpgrade: _onUpgrade,
       );
@@ -145,6 +145,25 @@ class DatabaseHelper {
       } catch (_) {}
       // Overwrite presets with the newly expanded PH audit list
       await db.execute('DELETE FROM appliance_presets');
+      await _seedPresets(db);
+    }
+
+    // THE FIX: Hard reset for the presets catalog to remove duplicates
+    if (oldVersion < 8) {
+      // 1. Completely destroy the duplicated table
+      await db.execute('DROP TABLE IF EXISTS appliance_presets');
+
+      // 2. Rebuild the table structure perfectly clean
+      await db.execute('''
+            CREATE TABLE appliance_presets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              appliance_name TEXT NOT NULL,
+              category TEXT NOT NULL,
+              preset_wattage REAL NOT NULL
+            )
+          ''');
+
+      // 3. Inject a fresh, single batch of your updated presets
       await _seedPresets(db);
     }
   }
