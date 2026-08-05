@@ -98,4 +98,14 @@ final List<AppliancePreset> commonAppliances = [
     estimatedWatts: 9.0,
     category: 'Lighting',
   ),
+  AppliancePreset(
+    name: 'LED Light Bulb',
+    estimatedWatts: 12.0,
+    category: 'Lighting',
+  ),
+  AppliancePreset(
+    name: 'LED Light Bulb',
+    estimatedWatts: 15.0,
+    category: 'Lighting',
+  ),
 ];

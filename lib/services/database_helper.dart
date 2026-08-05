@@ -317,6 +317,16 @@ class DatabaseHelper {
         'preset_wattage': 9.0,
       },
       {
+      'appliance_name': 'LED Light Bulb',
+      'category': 'Lighting',
+      'preset_wattage': 12.0,
+      },
+      {
+        'appliance_name': 'LED Light Bulb',
+        'category': 'Lighting',
+        'preset_wattage': 15.0,
+      },
+      {
         'appliance_name': 'Videoke / Karaoke Speaker',
         'category': 'Entertainment',
         'preset_wattage': 100.0,
