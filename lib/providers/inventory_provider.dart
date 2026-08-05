@@ -8,6 +8,7 @@ class Appliance {
   final int presetId;
   final String customName;
   final double presetWattage;
+  final int quantity; // <-- NEW: Added quantity parameter
   final double userAssignedHours;
   final double adjustedHours;
   final bool isLocked;
@@ -17,6 +18,7 @@ class Appliance {
     required this.presetId,
     required this.customName,
     required this.presetWattage,
+    required this.quantity, // <-- NEW: Required parameter
     required this.userAssignedHours,
     required this.adjustedHours,
     required this.isLocked,
@@ -28,6 +30,7 @@ class Appliance {
       presetId: presetId,
       customName: customName,
       presetWattage: presetWattage,
+      quantity: quantity, // <-- NEW: Maintain quantity on copy
       userAssignedHours: userAssignedHours,
       adjustedHours: adjustedHours ?? this.adjustedHours,
       isLocked: isLocked ?? this.isLocked,
@@ -58,9 +61,13 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
         presetId: row['preset_id'] as int,
         customName: row['custom_name'] as String,
         presetWattage: (row['preset_wattage'] as num).toDouble(),
+        quantity:
+            row['quantity'] as int? ??
+            1, // <-- NEW: Safely parse quantity with a fallback
         userAssignedHours: (row['user_assigned_hours'] as num).toDouble(),
         adjustedHours: (row['adjusted_hours'] as num).toDouble(),
-        isLocked: (row['is_locked'] as int) == 1, // SQLite stores booleans as 0 or 1
+        isLocked:
+            (row['is_locked'] as int) == 1, // SQLite stores booleans as 0 or 1
       );
     }).toList();
 
@@ -74,12 +81,14 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     required String customName,
     required double defaultHours,
     required double wattage,
+    required int quantity, // <-- NEW: Accept quantity from UI
   }) async {
     final newItem = Appliance(
       id: const Uuid().v4(),
       presetId: presetId,
       customName: customName,
       presetWattage: wattage,
+      quantity: quantity, // <-- NEW: Pass to model
       userAssignedHours: defaultHours,
       adjustedHours: defaultHours,
       isLocked: false,
@@ -129,7 +138,13 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       double lockedMonthlyKwh = 0.0;
       for (var item in currentState) {
         if (item.isLocked) {
-          lockedMonthlyKwh += (item.presetWattage * 1 * item.userAssignedHours * 30) / 1000;
+          // NEW: Multiply by item.quantity instead of hardcoded 1
+          lockedMonthlyKwh +=
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -141,7 +156,13 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       double unlockedMonthlyKwh = 0.0;
       for (var item in currentState) {
         if (!item.isLocked) {
-          unlockedMonthlyKwh += (item.presetWattage * 1 * item.userAssignedHours * 30) / 1000;
+          // NEW: Multiply by item.quantity instead of hardcoded 1
+          unlockedMonthlyKwh +=
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -156,7 +177,9 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
         if (item.isLocked) {
           return item.copyWith(adjustedHours: item.userAssignedHours);
         } else {
-          return item.copyWith(adjustedHours: item.userAssignedHours * reductionFactor);
+          return item.copyWith(
+            adjustedHours: item.userAssignedHours * reductionFactor,
+          );
         }
       }).toList();
     }
@@ -176,6 +199,7 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
         'preset_id': item.presetId,
         'custom_name': item.customName,
         'preset_wattage': item.presetWattage,
+        'quantity': item.quantity, // <-- NEW: Save quantity to DB
         'user_assigned_hours': item.userAssignedHours,
         'adjusted_hours': item.adjustedHours,
         'is_locked': item.isLocked ? 1 : 0, // SQLite needs 1/0 for booleans
