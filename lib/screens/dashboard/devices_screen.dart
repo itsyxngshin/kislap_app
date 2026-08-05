@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
-import '../../providers/settings_provider.dart'; // <-- Added Provider
+import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 
 class DevicesScreen extends ConsumerStatefulWidget {
@@ -15,6 +14,7 @@ class DevicesScreen extends ConsumerStatefulWidget {
 
 class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   double _activeRate = 12.35;
+  String _sortOrder = 'Highest kWh'; // NEW: Active sort state
 
   @override
   void initState() {
@@ -46,154 +46,180 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   @override
   Widget build(BuildContext context) {
     final devices = ref.watch(inventoryProvider);
-    final isPh = ref.watch(settingsProvider).language == 'ph'; // Check language
+    final isPh = ref.watch(settingsProvider).language == 'ph';
 
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
+
+    // NEW: Sorting algorithm
+    List<dynamic> sortedDevices = List.from(devices);
+    if (_sortOrder == 'Highest kWh') {
+      sortedDevices.sort((a, b) => ((b.presetWattage * b.quantity * b.adjustedHours)).compareTo(a.presetWattage * a.quantity * a.adjustedHours));
+    } else if (_sortOrder == 'Lowest kWh') {
+      sortedDevices.sort((a, b) => ((a.presetWattage * a.quantity * a.adjustedHours)).compareTo(b.presetWattage * b.quantity * b.adjustedHours));
+    } else if (_sortOrder == 'Name (A-Z)') {
+      sortedDevices.sort((a, b) => a.customName.toString().toLowerCase().compareTo(b.customName.toString().toLowerCase()));
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: AppTheme.globalBackground(context),
-        child: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isPh ? 'Lugar ng Pagpaplano' : 'My Planning Space',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.appYellow.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.appYellow.withValues(alpha: 0.3)),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with Inline Sorting
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    isPh ? 'Lugar ng Pagpaplano' : 'My Planning Space',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.info_outline, color: AppColors.appYellow, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          isPh
-                            ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock (🔓) ang iba para sa awtomatikong pag-optimize ng budget.'
-                            : 'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
-                          style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 12, height: 1.4),
-                        ),
-                      ),
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.sort, color: hintColor, size: 24),
+                    color: surfaceColor,
+                    onSelected: (val) => setState(() => _sortOrder = val),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: 'Highest kWh', child: Text(isPh ? 'Pinakamataas na kWh' : 'Highest kWh', style: TextStyle(color: textColor, fontSize: 13))),
+                      PopupMenuItem(value: 'Lowest kWh', child: Text(isPh ? 'Pinakamababang kWh' : 'Lowest kWh', style: TextStyle(color: textColor, fontSize: 13))),
+                      PopupMenuItem(value: 'Name (A-Z)', child: Text(isPh ? 'Pangalan (A-Z)' : 'Name (A-Z)', style: TextStyle(color: textColor, fontSize: 13))),
                     ],
                   ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.appYellow.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.appYellow.withOpacity(0.3)),
                 ),
-                const SizedBox(height: 25),
-
-                if (devices.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(16)),
-                        child: Text(
-                          isPh ? "Wala pang nailagay na gamit. I-click ang 'Magdagdag' sa Home tab!" : "No items added yet. Click 'Add item' on the Home tab!",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: hintColor, fontSize: 14, height: 1.4),
-                        ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline, color: AppColors.appYellow, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isPh
+                          ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock (🔓) ang iba para sa awtomatikong pag-optimize ng budget.'
+                          : 'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
+                        style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 12, height: 1.4),
                       ),
                     ),
-                  )
-                else
-                  ...devices.map((device) {
-                    final double dailyKwh = (device.presetWattage / 1000) * device.adjustedHours;
-                    final double monthlyKwh = dailyKwh * 30;
-                    final double monthlyCost = monthlyKwh * _activeRate;
+                  ],
+                ),
+              ),
+              const SizedBox(height: 25),
 
-                    final bool isReduced = device.adjustedHours < device.userAssignedHours;
-                    final Color lockColor = device.isLocked ? AppColors.appYellow : (isReduced ? Colors.orange : Colors.greenAccent);
+              if (devices.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(color: surfaceColor.withOpacity(0.3), borderRadius: BorderRadius.circular(16)),
+                      child: Text(
+                        isPh ? "Wala pang nailagay na gamit. I-click ang 'Magdagdag' sa Home tab!" : "No items added yet. Click 'Add item' on the Home tab!",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: hintColor, fontSize: 14, height: 1.4),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                // Render the sorted array
+                ...sortedDevices.map((device) {
+                  // FIX: Added quantity to the power math
+                  final double dailyKwh = ((device.presetWattage * device.quantity) / 1000) * device.adjustedHours;
+                  final double monthlyKwh = dailyKwh * 30;
+                  final double monthlyCost = monthlyKwh * _activeRate;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: surfaceColor.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: device.isLocked ? AppColors.appYellow.withValues(alpha: 0.4) : textColor.withValues(alpha: 0.05)),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: device.isLocked ? AppColors.appYellow.withValues(alpha: 0.15) : surfaceColor, shape: BoxShape.circle),
-                                  child: Icon(Icons.electrical_services, color: device.isLocked ? AppColors.appYellow : hintColor, size: 22),
-                                ),
-                                const SizedBox(width: 15),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(device.customName, style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 4),
-                                      Text('${device.presetWattage.toStringAsFixed(0)}W · ${_formatTime(device.adjustedHours)} / ${isPh ? 'araw' : 'day'}', style: TextStyle(color: hintColor, fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                                Column(
+                  final bool isReduced = device.adjustedHours < device.userAssignedHours;
+                  final Color lockColor = device.isLocked ? AppColors.appYellow : (isReduced ? Colors.orange : Colors.greenAccent);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: surfaceColor.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: device.isLocked ? AppColors.appYellow.withOpacity(0.4) : textColor.withOpacity(0.05)),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: device.isLocked ? AppColors.appYellow.withOpacity(0.15) : surfaceColor, shape: BoxShape.circle),
+                                child: Icon(Icons.electrical_services, color: device.isLocked ? AppColors.appYellow : hintColor, size: 22),
+                              ),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    IconButton(
-                                      icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open, color: lockColor, size: 26),
-                                      onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(device.id, device.isLocked),
-                                    ),
-                                    Text(
-                                      device.isLocked ? (isPh ? 'Naka-lock' : 'Locked') : (isPh ? 'Naka-unlock' : 'Unlocked'),
-                                      style: TextStyle(color: lockColor, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
+                                    // Displays the dynamic Quantity value here
+                                    Text('${device.customName} (x${device.quantity})', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 4),
+                                    Text('${device.presetWattage.toStringAsFixed(0)}W • ${_formatTime(device.adjustedHours)} / ${isPh ? 'araw' : 'day'}', style: TextStyle(color: hintColor, fontSize: 12)),
                                   ],
                                 ),
-                                const SizedBox(width: 10),
-                                Column(
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.delete_outline, color: hintColor, size: 26),
-                                      onPressed: () => ref.read(inventoryProvider.notifier).removeAppliance(device.id),
-                                    ),
-                                    Text(isPh ? 'Burahin' : 'Remove', style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Divider(color: hintColor.withValues(alpha: 0.1), height: 1),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(12)),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              ),
+                              Column(
                                 children: [
-                                  _buildMetricColumn(isPh ? 'Araw-araw' : 'Daily', '${dailyKwh.toStringAsFixed(2)} kWh', textColor, hintColor),
-                                  _buildMetricColumn(isPh ? 'Buwanan' : 'Monthly', '${monthlyKwh.toStringAsFixed(1)} kWh', textColor, hintColor),
-                                  _buildMetricColumn(isPh ? 'Est. Bayad' : 'Est. Cost', '₱${monthlyCost.toStringAsFixed(0)}', device.isLocked ? AppColors.appYellow : Colors.greenAccent, hintColor),
+                                  IconButton(
+                                    icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open, color: lockColor, size: 26),
+                                    onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(device.id, device.isLocked),
+                                  ),
+                                  Text(
+                                    device.isLocked ? (isPh ? 'Naka-lock' : 'Locked') : (isPh ? 'Naka-unlock' : 'Unlocked'),
+                                    style: TextStyle(color: lockColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
                                 ],
                               ),
+                              const SizedBox(width: 10),
+                              Column(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline, color: hintColor, size: 26),
+                                    onPressed: () => ref.read(inventoryProvider.notifier).removeAppliance(device.id),
+                                  ),
+                                  Text(isPh ? 'Burahin' : 'Remove', style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Divider(color: hintColor.withOpacity(0.1), height: 1),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(12)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildMetricColumn(isPh ? 'Araw-araw' : 'Daily', '${dailyKwh.toStringAsFixed(2)} kWh', textColor, hintColor),
+                                _buildMetricColumn(isPh ? 'Buwanan' : 'Monthly', '${monthlyKwh.toStringAsFixed(1)} kWh', textColor, hintColor),
+                                _buildMetricColumn(isPh ? 'Est. Bayad' : 'Est. Cost', '₱${monthlyCost.toStringAsFixed(0)}', device.isLocked ? AppColors.appYellow : Colors.greenAccent, hintColor),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    );
-                  }),
-              ],
-            ),
+                    ),
+                  );
+                }),
+            ],
           ),
         ),
       ),
