@@ -23,7 +23,7 @@ class DatabaseHelper {
       db = await factory.openDatabase(
         'kislap_web.db',
         options: OpenDatabaseOptions(
-          version: 6, // <-- BUMPED TO VERSION 6 for the Quantity column
+          version: 7, // <-- BUMPED TO VERSION 6 for the Quantity column
           onCreate: _onCreate,
           onUpgrade: _onUpgrade,
         ),
@@ -317,9 +317,9 @@ class DatabaseHelper {
         'preset_wattage': 9.0,
       },
       {
-      'appliance_name': 'LED Light Bulb',
-      'category': 'Lighting',
-      'preset_wattage': 12.0,
+        'appliance_name': 'LED Light Bulb',
+        'category': 'Lighting',
+        'preset_wattage': 12.0,
       },
       {
         'appliance_name': 'LED Light Bulb',
