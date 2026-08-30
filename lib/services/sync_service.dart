@@ -80,7 +80,7 @@ class SyncService {
   static Future<void> mergeOfflineDataToCloud(String userId) async {
     try {
       final db = await _dbHelper.database;
-      
+
       // 1. Grab all items the user created while offline (Guest Mode)
       final List<Map<String, dynamic>> localItems = await db.query('user_inventory');
 
@@ -108,4 +108,36 @@ class SyncService {
       debugPrint('Merge Error: $e');
     }
   }
+
+  static Future<void> syncGlobalPresets() async {
+      try {
+        final supabase = Supabase.instance.client;
+        final db = await DatabaseHelper.instance.database;
+
+        // 1. Fetch latest presets from the cloud
+        final List<dynamic> cloudPresets = await supabase
+            .from('appliance_presets')
+            .select()
+            .order('category', ascending: true);
+
+        if (cloudPresets.isNotEmpty) {
+          // 2. Wipe the outdated local presets
+          await db.execute('DELETE FROM appliance_presets');
+
+          // 3. Inject the fresh cloud presets locally
+          Batch batch = db.batch();
+          for (var preset in cloudPresets) {
+            batch.insert('appliance_presets', {
+              // Note: Use the exact column names defined in your Supabase table
+              'appliance_name': preset['appliance_name'],
+              'category': preset['category'],
+              'preset_wattage': (preset['preset_wattage'] as num).toDouble(),
+            });
+          }
+          await batch.commit(noResult: true);
+        }
+      } catch (e) {
+        debugPrint('Failed to sync global presets: $e');
+      }
+    }
 }

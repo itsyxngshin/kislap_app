@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
@@ -14,7 +15,7 @@ class DevicesScreen extends ConsumerStatefulWidget {
 
 class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   double _activeRate = 12.35;
-  String _sortOrder = 'Highest kWh'; // NEW: Active sort state
+  String _sortOrder = 'Highest kWh';
 
   @override
   void initState() {
@@ -43,6 +44,83 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     return '${minutes}m';
   }
 
+  // ISO 25010: Universal Edit Implementation for Devices Screen
+  void _showEditModal(dynamic item, bool isPh) {
+    final nameController = TextEditingController(text: item.customName);
+    final hoursController = TextEditingController(text: item.userAssignedHours.toString());
+    int quantity = item.quantity;
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setModalState) {
+          return Container(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24, left: 24, right: 24, top: 24),
+            decoration: BoxDecoration(color: surfaceColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(isPh ? 'I-edit ang Gamit' : 'Edit Appliance', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                    IconButton(icon: Icon(Icons.close, color: textColor.withOpacity(0.6)), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: nameController, style: TextStyle(color: textColor),
+                  decoration: InputDecoration(labelText: isPh ? 'Pangalan' : 'Custom Name', filled: true, fillColor: textColor.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: hoursController, keyboardType: const TextInputType.numberWithOptions(decimal: true), style: TextStyle(color: textColor),
+                        decoration: InputDecoration(labelText: isPh ? 'Oras (Arawan)' : 'Daily Hours', suffixText: 'hrs', filled: true, fillColor: textColor.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(color: textColor.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [
+                          IconButton(onPressed: quantity > 1 ? () => setModalState(() => quantity--) : null, icon: const Icon(Icons.remove)),
+                          Text('$quantity', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                          IconButton(onPressed: () => setModalState(() => quantity++), icon: const Icon(Icons.add)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      final newHours = double.tryParse(hoursController.text) ?? item.userAssignedHours;
+                      ref.read(inventoryProvider.notifier).editAppliance(id: item.id, customName: nameController.text.trim(), quantity: quantity, userAssignedHours: newHours);
+                      Navigator.pop(context);
+                    },
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 16)),
+                    child: Text(isPh ? 'I-save ang Pagbabago' : 'Save Changes', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final devices = ref.watch(inventoryProvider);
@@ -52,7 +130,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
-    // NEW: Sorting algorithm
     List<dynamic> sortedDevices = List.from(devices);
     if (_sortOrder == 'Highest kWh') {
       sortedDevices.sort((a, b) => ((b.presetWattage * b.quantity * b.adjustedHours)).compareTo(a.presetWattage * a.quantity * a.adjustedHours));
@@ -71,7 +148,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with Inline Sorting
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -133,9 +209,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   ),
                 )
               else
-                // Render the sorted array
                 ...sortedDevices.map((device) {
-                  // FIX: Added quantity to the power math
                   final double dailyKwh = ((device.presetWattage * device.quantity) / 1000) * device.adjustedHours;
                   final double monthlyKwh = dailyKwh * 30;
                   final double monthlyCost = monthlyKwh * _activeRate;
@@ -167,17 +241,30 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Displays the dynamic Quantity value here
                                     Text('${device.customName} (x${device.quantity})', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
                                     Text('${device.presetWattage.toStringAsFixed(0)}W • ${_formatTime(device.adjustedHours)} / ${isPh ? 'araw' : 'day'}', style: TextStyle(color: hintColor, fontSize: 12)),
                                   ],
                                 ),
                               ),
+                              // NEW: Edit Button
                               Column(
                                 children: [
                                   IconButton(
-                                    icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open, color: lockColor, size: 26),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    color: AppColors.appYellow,
+                                    iconSize: 24,
+                                    onPressed: () => _showEditModal(device, isPh),
+                                  ),
+                                  Text(isPh ? 'I-edit' : 'Edit', style: const TextStyle(color: AppColors.appYellow, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const SizedBox(width: 5),
+                              // Lock Button
+                              Column(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open, color: lockColor, size: 24),
                                     onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(device.id, device.isLocked),
                                   ),
                                   Text(
@@ -186,11 +273,12 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 5),
+                              // Delete Button
                               Column(
                                 children: [
                                   IconButton(
-                                    icon: Icon(Icons.delete_outline, color: hintColor, size: 26),
+                                    icon: Icon(Icons.delete_outline, color: hintColor, size: 24),
                                     onPressed: () => ref.read(inventoryProvider.notifier).removeAppliance(device.id),
                                   ),
                                   Text(isPh ? 'Burahin' : 'Remove', style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
