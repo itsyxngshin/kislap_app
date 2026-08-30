@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
@@ -21,6 +22,9 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  // TODO: Paste your Google Web Client ID here
+  static const String webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -28,7 +32,27 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  Future<void> _signIn() async {
+  void _routeUser(User user) async {
+    await SyncService.mergeOfflineDataToCloud(user.id);
+
+    final profileData = await Supabase.instance.client
+        .from('profiles')
+        .select('role_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final int roleId = profileData?['role_id'] as int? ?? 1;
+
+    if (mounted) {
+      if (roleId == 2) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()), (route) => false);
+      } else {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
+      }
+    }
+  }
+
+  Future<void> _signInWithEmail() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -40,48 +64,51 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = authResponse.user;
-
-      if (user != null) {
-        await SyncService.mergeOfflineDataToCloud(user.id);
-
-        final profileData = await Supabase.instance.client
-            .from('profiles')
-            .select('role_id')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        final int roleId = profileData?['role_id'] as int? ?? 1;
-
-        if (mounted) {
-          if (roleId == 2) {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-              (route) => false
-            );
-          } else {
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardShell()),
-              (route) => false
-            );
-          }
-        }
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(email: email, password: password);
+      if (authResponse.user != null) {
+        _routeUser(authResponse.user!);
       }
     } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn(serverClientId: webClientId);
+      final googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return; // User canceled the sign-in flow
       }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (accessToken == null || idToken == null) {
+        throw 'Missing Google Auth Tokens';
+      }
+
+      final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      if (authResponse.user != null) {
+        _routeUser(authResponse.user!);
+      }
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,7 +117,7 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
 
     return Container(
       decoration: AppTheme.globalBackground(context),
@@ -99,10 +126,7 @@ class _SignInScreenState extends State<SignInScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: textColor),
-            onPressed: () => Navigator.pop(context),
-          ),
+          leading: const BackButton(), // ISO 25010: Standardized navigation
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -118,12 +142,12 @@ class _SignInScreenState extends State<SignInScreen> {
                 Text('Sign in to keep tracking your usage.', style: TextStyle(color: hintColor, fontSize: 14)),
                 const SizedBox(height: 40),
 
-                Text('Email', style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('Email', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
                 const SizedBox(height: 20),
 
-                Text('Password', style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w600)),
+                Text('Password', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
 
@@ -139,7 +163,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: _isLoading ? null : _signIn,
+                    onPressed: _isLoading ? null : _signInWithEmail,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.appYellow,
                       foregroundColor: Colors.black87,
@@ -156,12 +180,10 @@ class _SignInScreenState extends State<SignInScreen> {
                 Center(child: Text('or continue with', style: TextStyle(color: hintColor, fontSize: 12))),
                 const SizedBox(height: 20),
 
-                Row(
-                  children: [
-                    Expanded(child: SocialButton(icon: Icons.g_mobiledata, label: 'Google', onPressed: () {})),
-                    const SizedBox(width: 15),
-                    Expanded(child: SocialButton(icon: Icons.apple, label: 'Apple', onPressed: () {})),
-                  ],
+                // ISO 25010: Simplified authentication options (Apple removed)
+                SizedBox(
+                  width: double.infinity,
+                  child: SocialButton(icon: Icons.g_mobiledata, label: 'Continue with Google', onPressed: _isLoading ? () {} : _signInWithGoogle),
                 ),
                 const SizedBox(height: 30),
 

@@ -18,6 +18,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   bool _isLoading = true;
   bool _showFormulas = false;
   String _sortOrder = 'Highest kWh';
+  enum TimeView { daily, weekly, monthly }
+  TimeView _selectedView = TimeView.daily;
 
   @override
   void initState() {

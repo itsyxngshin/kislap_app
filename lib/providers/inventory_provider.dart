@@ -98,6 +98,27 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     await _optimizeAndSave(newState);
   }
 
+  Future<void> editAppliance({
+      required String id,
+      required String customName,
+      required int quantity,
+      required double userAssignedHours,
+    }) async {
+      final newState = state.map((item) {
+        if (item.id == id) {
+          return item.copyWith(
+            customName: customName,
+            quantity: quantity,
+            userAssignedHours: userAssignedHours,
+            adjustedHours: userAssignedHours, // Resets before running the optimization engine
+          );
+        }
+        return item;
+      }).toList();
+  
+      await _optimizeAndSave(newState);
+    }
+
   Future<void> removeAppliance(String id) async {
     final newState = state.where((item) => item.id != id).toList();
     await _optimizeAndSave(newState);

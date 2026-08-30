@@ -25,7 +25,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _tariffController = TextEditingController(text: '12.35');
   String _householdSize = 'Small';
 
-  // NEW: Calculates the previous month dynamically (M-1)
   String _getPreviousBillingMonth() {
     final now = DateTime.now();
     int prevMonth = now.month - 1;
@@ -121,7 +120,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(icon: Icon(Icons.arrow_back, color: textColor), onPressed: () => Navigator.pop(context)),
+          leading: const BackButton(), // ISO 25010: Standardized navigation
           title: Text('Account Setup', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
         ),
         body: Theme(
@@ -218,7 +217,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // EXPLICIT M-1 PROMPT
                           const Text('Previous Utility Rate', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 4),
                           Text('Check your electric bill from ${_getPreviousBillingMonth()} for the exact ₱/kWh rate.', style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
@@ -287,7 +285,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   Text(title, style: TextStyle(color: isSelected ? textColor : hintColor, fontSize: 15, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                   const SizedBox(height: 6),
-                  Text(description, style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
+                  Text(description, style: TextStyle(color: hintColor, fontSize: 11, height: 1.4)),
                 ],
               ),
             ),
