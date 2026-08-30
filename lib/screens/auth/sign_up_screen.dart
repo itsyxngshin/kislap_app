@@ -175,41 +175,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showOnboardingPrompt() {
-    final surfaceColor = Theme.of(context).colorScheme.surface;
+      final surfaceColor = Theme.of(context).colorScheme.surface;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: surfaceColor,
-        title: const Text('Setup Complete!', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Would you like to add your household appliances now, or proceed to the dashboard?',
-          style: TextStyle(height: 1.4),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: surfaceColor,
+          title: const Text('Setup Complete!', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text(
+            'Would you like to add your household appliances now, or proceed to the dashboard?',
+            style: TextStyle(height: 1.4),
+          ),
+          // FIX: Removed 'isPh' variables and illegal 'const' route keywords
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => DashboardShell()), // Removed const
+                (route) => false
+              ),
+              child: const Text('Skip for now', style: TextStyle(color: AppColors.appYellow)),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => OnboardingDevicesScreen()) // Removed const
+                );
+              },
+              style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+              child: const Text('Add Appliances', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
-        actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(builder: (_) => DashboardShell()), // Removed const
-                                (route) => false
-                              ),
-                              child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
-                            ),
-                            FilledButton(
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => OnboardingDevicesScreen()) // Removed const
-                                );
-                              },
-                              style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
-                              child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-      ),
-    );
+      );
+    }
   }
 
   @override
