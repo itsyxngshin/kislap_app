@@ -188,26 +188,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
           style: TextStyle(height: 1.4),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardShell()),
-              (route) => false
-            ),
-            child: const Text('Skip for now', style: TextStyle(color: AppColors.appYellow)),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const OnboardingDevicesScreen())
-              );
-            },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
-            child: const Text('Add Appliances', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
+                            TextButton(
+                              onPressed: () => Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(builder: (_) => DashboardShell()), // Removed const
+                                (route) => false
+                              ),
+                              child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
+                            ),
+                            FilledButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => OnboardingDevicesScreen()) // Removed const
+                                );
+                              },
+                              style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+                              child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ],
       ),
     );
   }
