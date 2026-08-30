@@ -97,43 +97,58 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   // --- Google OAuth Sign In ---
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
+    Future<void> _signInWithGoogle() async {
+      setState(() => _isLoading = true);
 
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
+      try {
         // TODO: Replace with your actual Google Cloud Web Client ID
-        serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-      );
+        const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-      final googleUser = await googleSignIn.signIn();
+        final GoogleSignIn googleSignIn = GoogleSignIn(
+          clientId: webClientId,       // <-- FIX 1: CRITICAL FOR FLUTTER WEB
+          serverClientId: webClientId, // <-- FIX 2: CRITICAL FOR SUPABASE AUTH
+        );
 
-      // If user closes the Google pop-up without logging in
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
+        // Triggers the Google popup
+        final googleUser = await googleSignIn.signIn();
+
+        // If this is STILL null, the user either closed the popup,
+        // or your Vercel URL is not whitelisted in Google Cloud (See Step 3).
+        if (googleUser == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Google Sign-In canceled or blocked by browser.'))
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final googleAuth = await googleUser.authentication;
+        final accessToken = googleAuth.accessToken;
+        final idToken = googleAuth.idToken;
+
+        if (idToken == null) throw 'Missing Google ID Token. Check your Client ID configuration.';
+
+        // Send the tokens to Supabase to establish the actual session
+        final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+
+        await _handleSuccessfulLogin(authResponse.user);
+
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed)
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
-
-      if (accessToken == null || idToken == null) throw 'Missing Google Auth Tokens';
-
-      final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      await _handleSuccessfulLogin(authResponse.user);
-
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
 
   @override
   Widget build(BuildContext context) {

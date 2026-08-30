@@ -103,19 +103,28 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4),
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false),
-                child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AddDeviceScreen()));
-                },
-                style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
-                child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
+                          TextButton(
+                            // Option 1: Skip entirely and go to Dashboard
+                            onPressed: () => Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => const DashboardShell()),
+                              (route) => false
+                            ),
+                            child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
+                          ),
+                          FilledButton(
+                            // Option 2: Go to the Multi-Add Onboarding Screen
+                            onPressed: () {
+                              Navigator.pop(ctx); // Close the dialog
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (_) => const OnboardingDevicesScreen())
+                              );
+                            },
+                            style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+                            child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
           ),
         );
       }

@@ -7,6 +7,7 @@ import '../../providers/settings_provider.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 import 'guest_setup_screen.dart';
+import 'onboarding_devices_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 
 class OnboardingScreen extends ConsumerWidget {

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/social_button.dart'; // Required for Google Button
 import '../../services/database_helper.dart';
 import '../dashboard/dashboard_shell.dart';
+import 'onboarding_devices_screen.dart'; // Required for the Multi-Add loop
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -16,6 +19,7 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
+  bool _isGoogleAuth = false; // Tracks if the user bypassed email/password
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -47,8 +51,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.adminRed));
+  }
+
   bool _validateCurrentStep() {
-    if (_currentStep == 0) {
+    if (_currentStep == 0 && !_isGoogleAuth) {
       if (_nameController.text.trim().isEmpty || _emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
         _showError('Please fill out all account details.');
         return false;
@@ -67,26 +75,84 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return true;
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppColors.adminRed));
+  // --- Google OAuth Sign Up ---
+  Future<void> _signUpWithGoogle() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // TODO: Replace with your actual Google Cloud Web Client ID
+      const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: webClientId,
+        serverClientId: webClientId,
+      );
+
+      final googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) throw 'Missing Google ID Token.';
+
+      await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      // If successful, flag as Google Auth and force advance to Step 2
+      setState(() {
+        _isGoogleAuth = true;
+        _currentStep = 1;
+      });
+
+    } catch (e) {
+      if (mounted) _showError('Google Sign-Up Error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _submitRegistration() async {
     setState(() => _isLoading = true);
 
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
     final budget = double.tryParse(_budgetController.text) ?? 0.0;
     final tariff = double.tryParse(_tariffController.text) ?? 12.35;
 
     try {
-      await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: password,
-        data: {'full_name': name, 'monthly_budget': budget, 'tariff_rate': tariff, 'household_size': _householdSize},
-      );
+      // 1. Process Supabase Authentication
+      User? user = Supabase.instance.client.auth.currentUser;
 
+      if (!_isGoogleAuth) {
+        // Standard Email Sign-Up
+        final authResponse = await Supabase.instance.client.auth.signUp(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          data: {
+            'full_name': _nameController.text.trim(),
+            'monthly_budget': budget,
+            'tariff_rate': tariff,
+            'household_size': _householdSize
+          },
+        );
+        user = authResponse.user;
+      } else if (user != null) {
+        // Google Sign-Up: Update the generated profile with financial data
+        await Supabase.instance.client.from('profiles').update({
+          'monthly_budget': budget,
+          'tariff_rate': tariff,
+          'household_size': _householdSize,
+        }).eq('id', user.id);
+      }
+
+      // 2. Process Local SQLite Settings
       final db = await DatabaseHelper.instance.database;
       await db.update(
         'user_settings',
@@ -95,8 +161,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         whereArgs: [1],
       );
 
+      // 3. Trigger the Post-Registration Multi-Add Prompt
       if (mounted) {
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
+        _showOnboardingPrompt();
       }
     } on AuthException catch (e) {
       if (mounted) _showError(e.message);
@@ -105,6 +172,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showOnboardingPrompt() {
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        title: const Text('Setup Complete!', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Would you like to add your household appliances now, or proceed to the dashboard?',
+          style: TextStyle(height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardShell()),
+              (route) => false
+            ),
+            child: const Text('Skip for now', style: TextStyle(color: AppColors.appYellow)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const OnboardingDevicesScreen())
+              );
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+            child: const Text('Add Appliances', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -120,7 +225,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: const BackButton(), // ISO 25010: Standardized navigation
+          leading: const BackButton(),
           title: Text('Account Setup', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
         ),
         body: Theme(
@@ -134,13 +239,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
             elevation: 0,
             onStepContinue: () {
               if (_validateCurrentStep()) {
-                if (_currentStep < 2) setState(() => _currentStep += 1);
-                else _submitRegistration();
+                if (_currentStep < 2) {
+                  setState(() => _currentStep += 1);
+                } else {
+                  _submitRegistration();
+                }
               }
             },
             onStepCancel: () {
-              if (_currentStep > 0) setState(() => _currentStep -= 1);
-              else Navigator.pop(context);
+              if (_currentStep > 0) {
+                setState(() => _currentStep -= 1);
+              } else {
+                Navigator.pop(context);
+              }
             },
             controlsBuilder: (context, details) {
               final isLastStep = _currentStep == 2;
@@ -176,16 +287,50 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 subtitle: Text('Your login credentials', style: TextStyle(color: hintColor)),
                 isActive: _currentStep >= 0,
                 state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-                content: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
-                    const SizedBox(height: 15),
-                    CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
-                    const SizedBox(height: 15),
-                    CustomTextField(controller: _passwordController, hint: 'Create a password', icon: Icons.lock_outline, isPassword: true),
-                  ],
-                ),
+                content: _isGoogleAuth
+                    ? Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withOpacity(0.3))),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.green),
+                            SizedBox(width: 12),
+                            Text('Authenticated via Google', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
+                          const SizedBox(height: 15),
+                          CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
+                          const SizedBox(height: 15),
+                          CustomTextField(controller: _passwordController, hint: 'Create a password', icon: Icons.lock_outline, isPassword: true),
+                          const SizedBox(height: 25),
+
+                          Row(
+                            children: [
+                              Expanded(child: Divider(color: hintColor.withOpacity(0.3))),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text('or', style: TextStyle(color: hintColor, fontSize: 12)),
+                              ),
+                              Expanded(child: Divider(color: hintColor.withOpacity(0.3))),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+
+                          SizedBox(
+                            width: double.infinity,
+                            child: SocialButton(
+                              icon: Icons.g_mobiledata,
+                              label: 'Sign up with Google',
+                              onPressed: _isLoading ? () {} : _signUpWithGoogle,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
               Step(
                 title: Text('Financial Baseline', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -285,7 +430,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   Text(title, style: TextStyle(color: isSelected ? textColor : hintColor, fontSize: 15, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                   const SizedBox(height: 6),
-                  Text(description, style: TextStyle(color: hintColor, fontSize: 11, height: 1.4)),
+                  Text(description, style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
                 ],
               ),
             ),
