@@ -90,44 +90,42 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
       );
 
       if (mounted) {
-        // ISO 25010 Usability: Direct Onboarding Loop Prompt
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            title: Text(isPh ? 'Matagumpay na Nai-save!' : 'Setup Complete!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
-            content: Text(isPh
-              ? 'Gusto mo bang magdagdag na ng mga appliances ngayon, o dumiretso sa dashboard?'
-              : 'Would you like to add your household appliances now, or proceed to the dashboard?',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4),
-            ),
-            actions: [
-                          TextButton(
-                            // Option 1: Skip entirely and go to Dashboard
-                            onPressed: () => Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (_) => const DashboardShell()),
-                              (route) => false
-                            ),
-                            child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
-                          ),
-                          FilledButton(
-                            // Option 2: Go to the Multi-Add Onboarding Screen
-                            onPressed: () {
-                              Navigator.pop(ctx); // Close the dialog
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (_) => const OnboardingDevicesScreen())
-                              );
-                            },
-                            style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
-                            child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-          ),
-        );
-      }
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  title: Text(isPh ? 'Matagumpay na Nai-save!' : 'Setup Complete!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                  content: Text(isPh
+                    ? 'Gusto mo bang magdagdag na ng mga appliances ngayon, o dumiretso sa dashboard?'
+                    : 'Would you like to add your household appliances now, or proceed to the dashboard?',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4),
+                  ),
+                  // FIX: Removed any illegal const keywords from this array and its routes
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DashboardShell()),
+                        (route) => false
+                      ),
+                      child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const OnboardingDevicesScreen())
+                        );
+                      },
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+                      child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving setup: $e'), backgroundColor: AppColors.adminRed));
     } finally {
