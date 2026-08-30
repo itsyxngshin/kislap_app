@@ -6,6 +6,7 @@ import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 import '../dashboard/dashboard_shell.dart';
+import 'onboarding_devices_screen.dart';
 import '../../widgets/custom_text_field.dart';
 
 class OnboardingDevicesScreen extends ConsumerStatefulWidget {
