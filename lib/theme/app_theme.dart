@@ -17,7 +17,7 @@ class AppTheme {
         elevation: 0,
         iconTheme: IconThemeData(color: Color(0xFF0F172A)), // Standardized back buttons
       ),
-      fontFamily: 'Inter', 
+      fontFamily: 'Inter',
     );
   }
 
@@ -37,6 +37,14 @@ class AppTheme {
         iconTheme: IconThemeData(color: Colors.white),
       ),
       fontFamily: 'Inter',
+    );
+  }
+
+  // FIX: This missing method is restored so Auth/Onboarding screens don't crash
+  // It now returns your clean, standardized solid background color.
+  static BoxDecoration globalBackground(BuildContext context) {
+    return BoxDecoration(
+      color: Theme.of(context).scaffoldBackgroundColor,
     );
   }
 }

@@ -5,6 +5,7 @@ import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 
+enum TimeView { daily, weekly, monthly }
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
 
@@ -18,7 +19,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   bool _isLoading = true;
   bool _showFormulas = false;
   String _sortOrder = 'Highest kWh';
-  enum TimeView { daily, weekly, monthly }
   TimeView _selectedView = TimeView.daily;
 
   @override

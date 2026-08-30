@@ -8,7 +8,7 @@ class Appliance {
   final int presetId;
   final String customName;
   final double presetWattage;
-  final int quantity; // <-- NEW: Added quantity parameter
+  final int quantity;
   final double userAssignedHours;
   final double adjustedHours;
   final bool isLocked;
@@ -18,20 +18,27 @@ class Appliance {
     required this.presetId,
     required this.customName,
     required this.presetWattage,
-    required this.quantity, // <-- NEW: Required parameter
+    required this.quantity,
     required this.userAssignedHours,
     required this.adjustedHours,
     required this.isLocked,
   });
 
-  Appliance copyWith({double? adjustedHours, bool? isLocked}) {
+  // FIX: Updated copyWith to accept the new editable parameters
+  Appliance copyWith({
+    String? customName,
+    int? quantity,
+    double? userAssignedHours,
+    double? adjustedHours,
+    bool? isLocked,
+  }) {
     return Appliance(
       id: id,
       presetId: presetId,
-      customName: customName,
+      customName: customName ?? this.customName,
       presetWattage: presetWattage,
-      quantity: quantity, // <-- NEW: Maintain quantity on copy
-      userAssignedHours: userAssignedHours,
+      quantity: quantity ?? this.quantity,
+      userAssignedHours: userAssignedHours ?? this.userAssignedHours,
       adjustedHours: adjustedHours ?? this.adjustedHours,
       isLocked: isLocked ?? this.isLocked,
     );
@@ -104,18 +111,19 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       required int quantity,
       required double userAssignedHours,
     }) async {
-      final newState = state.map((item) {
+      // FIX: Added <Appliance> to strictly enforce the list type
+      final newState = state.map<Appliance>((item) {
         if (item.id == id) {
           return item.copyWith(
             customName: customName,
             quantity: quantity,
             userAssignedHours: userAssignedHours,
-            adjustedHours: userAssignedHours, // Resets before running the optimization engine
+            adjustedHours: userAssignedHours,
           );
         }
         return item;
       }).toList();
-  
+
       await _optimizeAndSave(newState);
     }
 
