@@ -9,6 +9,7 @@ import '../../services/database_helper.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
+import 'analysis_screen.dart'; // <-- Required for the deep link to work
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -96,7 +97,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final double tariff = double.tryParse(_tariffController.text) ?? 0.0;
       final db = await DatabaseHelper.instance.database;
 
-      // THE FIX: Use db.update to safely modify specific columns without wiping the entire row.
       await db.update(
         'user_settings',
         {
@@ -241,7 +241,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isPh = ref.watch(settingsProvider).language == 'ph';
     final devices = ref.watch(inventoryProvider);
     double optimizedDailyKwh = 0.0;
-    for (var device in devices) { optimizedDailyKwh += (device.presetWattage / 1000) * device.adjustedHours; }
+    for (var device in devices) { optimizedDailyKwh += (device.presetWattage * device.quantity / 1000) * device.adjustedHours; }
     final double optimizedMonthlyKwh = optimizedDailyKwh * 30;
 
     return Scaffold(
@@ -466,6 +466,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: ref.watch(settingsProvider).themeMode == ThemeMode.dark,
                     textColor: textColor,
                     onChanged: (isDark) => ref.read(settingsProvider.notifier).toggleTheme(isDark),
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // NEW: System Transparency & ISO 25010 Verification
+                Text(isPh ? 'SISTEMA AT TRANSPARENCY' : 'SYSTEM TRANSPARENCY', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  child: ListTile(
+                    leading: const Icon(Icons.calculate_outlined, color: AppColors.appYellow),
+                    title: Text(isPh ? 'Paano Gumagana ang Kislap?' : 'How Kislap Computes', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                    subtitle: Text(isPh ? 'I-verify ang math, optimization engine, at graphs.' : 'Verify the math, optimization engine, and graphs.', style: TextStyle(color: hintColor, fontSize: 12)),
+                    trailing: Icon(Icons.arrow_forward_ios, color: hintColor, size: 16),
+                    onTap: () {
+                      // Deep links the user straight to the Analysis Hub
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
+                    },
                   ),
                 ),
                 const SizedBox(height: 40),
