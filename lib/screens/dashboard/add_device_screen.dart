@@ -16,22 +16,21 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
   final TextEditingController _customNameController = TextEditingController();
   final TextEditingController _hoursController = TextEditingController();
 
-  // NEW: Quantity state
-  int _quantity = 1;
+  List<Map<String, dynamic>> _presets = [];
+  List<String> _categories = [];
+  String? _selectedCategory;
 
-  // FIX: Track ID instead of Map to prevent dropdown vanishing bug
+  int _quantity = 1;
   int? _selectedPresetId;
   Map<String, dynamic>? _selectedPresetMap;
 
   bool _isSaving = false;
-  late Future<List<Map<String, dynamic>>> _presetsFuture;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _presetsFuture = DatabaseHelper.instance.database.then((db) {
-      return db.query('appliance_presets', orderBy: 'category, appliance_name');
-    });
+    _loadPresets();
   }
 
   @override
@@ -39,6 +38,27 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     _customNameController.dispose();
     _hoursController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPresets() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final data = await db.query('appliance_presets', orderBy: 'category, appliance_name');
+
+      if (mounted) {
+        setState(() {
+          _presets = data;
+          // Extract unique categories dynamically
+          _categories = data.map((p) => p['category'] as String).toSet().toList();
+          if (_categories.isNotEmpty) {
+            _selectedCategory = _categories.first; // Default to the first category
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _saveDevice(bool isPh) async {
@@ -61,15 +81,12 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     try {
       final double hours = double.parse(_hoursController.text);
 
-      // Pass the new quantity parameter to your provider
-      await ref
-          .read(inventoryProvider.notifier)
-          .addAppliance(
+      await ref.read(inventoryProvider.notifier).addAppliance(
             presetId: _selectedPresetId!,
             customName: _customNameController.text.trim(),
             defaultHours: hours,
             wattage: (_selectedPresetMap!['preset_wattage'] as num).toDouble(),
-            quantity: _quantity, // NEW PARAMETER
+            quantity: _quantity,
           );
 
       if (mounted) {
@@ -101,6 +118,9 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
+    // Dynamically filter the dropdown choices based on the selected category tile
+    final filteredPresets = _presets.where((p) => p['category'] == _selectedCategory).toList();
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -120,271 +140,305 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
           ),
         ),
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _presetsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.appYellow),
-            );
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Text(
-                isPh
-                    ? 'Walang nahanap na presets. Mag-sync sa cloud.'
-                    : 'No appliance presets found.\nPlease sync with the cloud.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: hintColor, height: 1.5),
-              ),
-            );
-          }
-
-          final presets = snapshot.data!;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: surfaceColor.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.appYellow.withOpacity(0.2),
-                    ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.appYellow))
+          : _presets.isEmpty
+              ? Center(
+                  child: Text(
+                    isPh
+                        ? 'Walang nahanap na presets. Mag-sync sa cloud.'
+                        : 'No appliance presets found.\nPlease sync with the cloud.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: hintColor, height: 1.5),
                   ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        isPh ? 'URI NG GAMIT' : 'APPLIANCE TYPE',
-                        style: const TextStyle(
-                          color: AppColors.appYellow,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: surfaceColor.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.appYellow.withOpacity(0.2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isPh ? '1. URI NG KATEGORYA' : '1. APPLIANCE CATEGORY',
+                              style: const TextStyle(
+                                color: AppColors.appYellow,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
 
-                      // THE FIX: Bound to integer 'id'
-                      DropdownButtonFormField<int>(
-                        value: _selectedPresetId,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: surfaceColor.withOpacity(0.8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.category_outlined,
-                            color: AppColors.appYellow,
-                          ),
-                        ),
-                        dropdownColor: surfaceColor,
-                        icon: Icon(Icons.keyboard_arrow_down, color: hintColor),
-                        hint: Text(
-                          isPh
-                              ? 'Pumili sa listahan...'
-                              : 'Select from catalog...',
-                          style: TextStyle(color: hintColor, fontSize: 13),
-                        ),
-                        isExpanded: true,
-                        items: presets
-                            .map(
-                              (preset) => DropdownMenuItem<int>(
-                                value: preset['id'] as int,
-                                child: Text(
-                                  '[${preset['category']}] ${preset['appliance_name']} (${preset['preset_wattage']}W)',
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 14,
-                                  ),
+                            // UX Enhancement: Horizontal Category Tiles
+                            SizedBox(
+                              height: 38,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _categories.length,
+                                itemBuilder: (context, index) {
+                                  final cat = _categories[index];
+                                  final isSelected = _selectedCategory == cat;
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedCategory = cat;
+                                        _selectedPresetId = null; // Reset dropdown when category changes
+                                        _selectedPresetMap = null;
+                                        _customNameController.clear();
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      margin: const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? AppColors.appYellow : surfaceColor,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: isSelected ? AppColors.appYellow : hintColor.withOpacity(0.2)),
+                                      ),
+                                      child: Text(
+                                        cat,
+                                        style: TextStyle(
+                                          color: isSelected ? Colors.black87 : textColor,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            Text(
+                              isPh ? '2. PUMILI SA LISTAHAN' : '2. SELECT FROM LIST',
+                              style: const TextStyle(
+                                color: AppColors.appYellow,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            DropdownButtonFormField<int>(
+                              value: _selectedPresetId,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: surfaceColor.withOpacity(0.8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.category_outlined,
+                                  color: AppColors.appYellow,
                                 ),
                               ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedPresetId = value;
-                            _selectedPresetMap = presets.firstWhere(
-                              (p) => p['id'] == value,
-                            );
-                            if (_customNameController.text.isEmpty &&
-                                _selectedPresetMap != null) {
-                              _customNameController.text =
-                                  _selectedPresetMap!['appliance_name'];
-                            }
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 30),
-
-                      // NEW: Quantity Selector
-                      Text(
-                        isPh ? 'BILANG (QUANTITY)' : 'QUANTITY',
-                        style: const TextStyle(
-                          color: AppColors.appYellow,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: surfaceColor.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              onPressed: _quantity > 1
-                                  ? () => setState(() => _quantity--)
-                                  : null,
-                              icon: const Icon(Icons.remove_circle_outline),
-                              color: _quantity > 1
-                                  ? AppColors.appYellow
-                                  : hintColor,
+                              dropdownColor: surfaceColor,
+                              icon: Icon(Icons.keyboard_arrow_down, color: hintColor),
+                              hint: Text(
+                                isPh ? 'Pumili sa ibaba...' : 'Select from below...',
+                                style: TextStyle(color: hintColor, fontSize: 13),
+                              ),
+                              isExpanded: true,
+                              items: filteredPresets
+                                  .map(
+                                    (preset) => DropdownMenuItem<int>(
+                                      value: preset['id'] as int,
+                                      child: Text(
+                                        '${preset['appliance_name']} (${preset['preset_wattage']}W)',
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedPresetId = value;
+                                  _selectedPresetMap = _presets.firstWhere((p) => p['id'] == value);
+                                  if (_customNameController.text.isEmpty && _selectedPresetMap != null) {
+                                    _customNameController.text = _selectedPresetMap!['appliance_name'];
+                                  }
+                                });
+                              },
                             ),
+                            const SizedBox(height: 30),
+
                             Text(
-                              '$_quantity',
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 20,
+                              isPh ? 'BILANG (QUANTITY)' : 'QUANTITY',
+                              style: const TextStyle(
+                                color: AppColors.appYellow,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
                               ),
                             ),
-                            IconButton(
-                              onPressed: () => setState(() => _quantity++),
-                              icon: const Icon(Icons.add_circle_outline),
-                              color: AppColors.appYellow,
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: surfaceColor.withOpacity(0.8),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    onPressed: _quantity > 1
+                                        ? () => setState(() => _quantity--)
+                                        : null,
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    color: _quantity > 1 ? AppColors.appYellow : hintColor,
+                                  ),
+                                  Text(
+                                    '$_quantity',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => setState(() => _quantity++),
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    color: AppColors.appYellow,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+
+                            Text(
+                              isPh ? 'PANGALAN NG GAMIT' : 'CUSTOM IDENTIFIER',
+                              style: const TextStyle(
+                                color: AppColors.appYellow,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _customNameController,
+                              style: TextStyle(color: textColor, fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: 'e.g., Master Bedroom AC',
+                                hintStyle: TextStyle(color: hintColor, fontSize: 14),
+                                filled: true,
+                                fillColor: surfaceColor.withOpacity(0.8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.label_outline,
+                                  color: hintColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+
+                            Text(
+                              isPh ? 'ORAS NG PAGGAMIT' : 'BASELINE USAGE',
+                              style: const TextStyle(
+                                color: AppColors.appYellow,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _hoursController,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: isPh ? 'Oras kada araw' : 'Hours per day',
+                                hintStyle: TextStyle(
+                                  color: hintColor,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                                filled: true,
+                                fillColor: surfaceColor.withOpacity(0.8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.schedule,
+                                  color: Colors.greenAccent,
+                                ),
+                                suffixText: 'hrs',
+                                suffixStyle: TextStyle(color: hintColor),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 30),
-
-                      Text(
-                        isPh ? 'PANGALAN NG GAMIT' : 'CUSTOM IDENTIFIER',
-                        style: const TextStyle(
-                          color: AppColors.appYellow,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _customNameController,
-                        style: TextStyle(color: textColor, fontSize: 16),
-                        decoration: InputDecoration(
-                          hintText: 'e.g., Master Bedroom AC',
-                          hintStyle: TextStyle(color: hintColor, fontSize: 14),
-                          filled: true,
-                          fillColor: surfaceColor.withOpacity(0.8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                      const SizedBox(height: 40),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: _isSaving ? null : () => _saveDevice(isPh),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 5,
                           ),
-                          prefixIcon: Icon(
-                            Icons.label_outline,
-                            color: hintColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-
-                      Text(
-                        isPh ? 'ORAS NG PAGGAMIT' : 'BASELINE USAGE',
-                        style: const TextStyle(
-                          color: AppColors.appYellow,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _hoursController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: isPh ? 'Oras kada araw' : 'Hours per day',
-                          hintStyle: TextStyle(
-                            color: hintColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.normal,
-                          ),
-                          filled: true,
-                          fillColor: surfaceColor.withOpacity(0.8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.schedule,
-                            color: Colors.greenAccent,
-                          ),
-                          suffixText: 'hrs',
-                          suffixStyle: TextStyle(color: hintColor),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  isPh ? 'Idagdag' : 'Add to Inventory',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _isSaving ? null : () => _saveDevice(isPh),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.orange.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 5,
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            isPh ? 'Idagdag' : 'Add to Inventory',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 }

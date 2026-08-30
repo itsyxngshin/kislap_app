@@ -17,6 +17,8 @@ class OnboardingDevicesScreen extends ConsumerStatefulWidget {
 
 class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScreen> {
   List<Map<String, dynamic>> _presets = [];
+  List<String> _categories = [];
+  String? _selectedCategory;
   int? _selectedPresetId;
 
   final TextEditingController _nameController = TextEditingController();
@@ -40,11 +42,16 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
   Future<void> _loadPresets() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      // Fetch the synced global presets from SQLite
       final data = await db.query('appliance_presets', orderBy: 'category, appliance_name');
+
       if (mounted) {
         setState(() {
           _presets = data;
+          // Extract unique categories dynamically
+          _categories = data.map((p) => p['category'] as String).toSet().toList();
+          if (_categories.isNotEmpty) {
+            _selectedCategory = _categories.first; // Default to first category
+          }
           _isLoading = false;
         });
       }
@@ -71,7 +78,6 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
       return;
     }
 
-    // Add directly to the Riverpod state
     ref.read(inventoryProvider.notifier).addAppliance(
       presetId: preset['id'] as int,
       customName: _nameController.text.trim(),
@@ -88,7 +94,6 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
       _quantity = 1;
     });
 
-    // Dismiss keyboard
     FocusScope.of(context).unfocus();
   }
 
@@ -99,7 +104,6 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
-    // Watch the live inventory as they add items
     final devices = ref.watch(inventoryProvider);
 
     if (_isLoading) {
@@ -109,13 +113,16 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
       );
     }
 
+    // Filter presets dynamically based on the active category tile
+    final filteredPresets = _presets.where((p) => p['category'] == _selectedCategory).toList();
+
     return Container(
       decoration: AppTheme.globalBackground(context),
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(isPh ? 'I-setup ang mga Gamit' : 'Setup Inventory', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-          automaticallyImplyLeading: false, // Prevents going back to the financial step
+          automaticallyImplyLeading: false,
         ),
         body: SafeArea(
           child: Column(
@@ -131,21 +138,72 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
                       Text(isPh ? 'Ilagay lahat ng gamit sa bahay upang masimulan ang pag-optimize ng Kislap.' : 'Add all your household appliances so Kislap can optimize your schedule.', style: TextStyle(color: hintColor, fontSize: 13, height: 1.4)),
                       const SizedBox(height: 24),
 
-                      // Rapid Entry Form
+                      // --- UX ENHANCEMENT: RAPID ENTRY FORM WITH CATEGORY TILES ---
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(color: surfaceColor.withOpacity(0.6), borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.appYellow.withOpacity(0.3))),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(isPh ? 'Pumili ng Preset' : 'Select a Preset', style: TextStyle(color: hintColor, fontSize: 12)),
+                            Text(isPh ? '1. Pumili ng Kategorya' : '1. Select Category', style: TextStyle(color: hintColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+
+                            // Horizontal Category Tiles
+                            SizedBox(
+                              height: 38,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _categories.length,
+                                itemBuilder: (context, index) {
+                                  final cat = _categories[index];
+                                  final isSelected = _selectedCategory == cat;
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedCategory = cat;
+                                        _selectedPresetId = null; // Reset dropdown when category changes
+                                        _nameController.clear();
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      margin: const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? AppColors.appYellow : surfaceColor,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: isSelected ? AppColors.appYellow : hintColor.withOpacity(0.2)),
+                                      ),
+                                      child: Text(
+                                        cat,
+                                        style: TextStyle(
+                                          color: isSelected ? Colors.black87 : textColor,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            Text(isPh ? '2. Pumili ng Gamit' : '2. Select Appliance', style: TextStyle(color: hintColor, fontSize: 12, fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
+
+                            // Dropdown is now perfectly filtered and manageable!
                             DropdownButtonFormField<int>(
                               value: _selectedPresetId,
                               decoration: InputDecoration(filled: true, fillColor: textColor.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
                               dropdownColor: surfaceColor,
-                              hint: Text(isPh ? 'Hal. Aircon, Fan...' : 'e.g., Aircon, Fan...', style: TextStyle(color: hintColor)),
-                              items: _presets.map((p) => DropdownMenuItem(value: p['id'] as int, child: Text('${p['appliance_name']} (${p['preset_wattage']}W)', style: TextStyle(color: textColor)))).toList(),
+                              hint: Text(isPh ? 'Pumili sa ibaba...' : 'Select from below...', style: TextStyle(color: hintColor)),
+                              items: filteredPresets.map((p) => DropdownMenuItem(
+                                value: p['id'] as int,
+                                child: Text('${p['appliance_name']} (${p['preset_wattage']}W)', style: TextStyle(color: textColor))
+                              )).toList(),
                               onChanged: (val) {
                                 setState(() {
                                   _selectedPresetId = val;
@@ -163,7 +221,7 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
                               children: [
                                 Expanded(
                                   flex: 3,
-                                  child: CustomTextField(controller: _hoursController, hint: isPh ? 'Oras (araw-araw)' : 'Daily Hours', icon: Icons.access_time, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                                  child: CustomTextField(controller: _hoursController, hint: isPh ? 'Oras/Araw' : 'Hrs/Day', icon: Icons.access_time, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(
