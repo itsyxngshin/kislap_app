@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'services/sync_service.dart';
@@ -21,9 +20,7 @@ void main() async {
   // Background catalog sync check on application boot
   SyncService.syncCatalogDown();
 
-  runApp(
-    const ProviderScope(child: KislapApp()),
-  );
+  runApp(const ProviderScope(child: KislapApp()));
 }
 
 class KislapApp extends ConsumerWidget {
@@ -41,26 +38,6 @@ class KislapApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: currentSettings.themeMode, // Instantly updates when toggled
       home: const SplashScreen(),
-    );
-  }
-
-  Future<void> signInWithGoogle() async {
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      serverClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-    );
-
-    final googleUser = await googleSignIn.signIn();
-    final googleAuth = await googleUser!.authentication;
-    final accessToken = googleAuth.accessToken;
-    final idToken = googleAuth.idToken;
-
-    if (accessToken == null || idToken == null) throw 'Missing Google Auth Tokens';
-
-    // Securely passes the Google tokens to your Supabase backend
-    await Supabase.instance.client.auth.signInWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
-      accessToken: accessToken,
     );
   }
 }
