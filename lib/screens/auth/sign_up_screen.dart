@@ -101,14 +101,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       const String webClientId =
           '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-      // v7 FIX: Use the singleton instance and initialize it
       final GoogleSignIn googleSignIn = GoogleSignIn.instance;
       await googleSignIn.initialize(
         clientId: webClientId,
         serverClientId: webClientId,
       );
 
-      // v7 FIX: Use authenticate() instead of signIn()
       final googleUser = await googleSignIn.authenticate();
 
       if (googleUser == null) {
@@ -116,16 +114,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
+      // v7 FIX: Extract only the idToken.
+      final googleAuth = googleUser.authentication;
       final idToken = googleAuth.idToken;
 
       if (idToken == null) throw 'Missing Google ID Token.';
 
+      // v7 FIX: Pass ONLY the idToken to Supabase
       await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
-        accessToken: accessToken,
       );
 
       setState(() {
