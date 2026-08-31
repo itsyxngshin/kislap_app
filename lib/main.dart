@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'services/sync_service.dart';
 import 'screens/auth/splash_screen.dart'; // Handles initial branding & auth routing
 import 'providers/settings_provider.dart';
@@ -19,7 +20,8 @@ void main() async {
 
   // --- ADD THIS GLOBAL INITIALIZATION ---
   try {
-    const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+    const String webClientId =
+        '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
     await GoogleSignIn.instance.initialize(clientId: webClientId);
   } catch (_) {
     // Catches any duplicate calls safely if hot-reloaded
