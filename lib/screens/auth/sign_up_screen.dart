@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
-import '../../widgets/social_button.dart'; // Required for Google Button
+import '../../widgets/social_button.dart';
 import '../../services/database_helper.dart';
 import '../dashboard/dashboard_shell.dart';
-import 'onboarding_devices_screen.dart'; // Required for the Multi-Add loop
+import 'onboarding_devices_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -19,7 +18,7 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
-  bool _isGoogleAuth = false; // Tracks if the user bypassed email/password
+  bool _isGoogleAuth = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -66,9 +65,63 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.adminRed),
+  // --- NEW: Reusable Modal Prompt ---
+  void _showModalPrompt(String title, String message, {bool isError = false}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isError
+                ? AppColors.adminRed.withOpacity(0.3)
+                : AppColors.appYellow.withOpacity(0.3),
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError ? AppColors.adminRed : AppColors.appYellow,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(
+              backgroundColor: isError
+                  ? AppColors.adminRed
+                  : AppColors.appYellow,
+              foregroundColor: isError ? Colors.white : Colors.black87,
+            ),
+            child: const Text(
+              'OK',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -77,17 +130,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (_nameController.text.trim().isEmpty ||
           _emailController.text.trim().isEmpty ||
           _passwordController.text.trim().isEmpty) {
-        _showError('Please fill out all account details.');
+        _showModalPrompt(
+          'Incomplete Data',
+          'Please fill out all account details to proceed.',
+          isError: true,
+        );
         return false;
       }
       if (_passwordController.text.length < 6) {
-        _showError('Password must be at least 6 characters.');
+        _showModalPrompt(
+          'Weak Password',
+          'Your password must be at least 6 characters long.',
+          isError: true,
+        );
         return false;
       }
     } else if (_currentStep == 1) {
       final budget = double.tryParse(_budgetController.text) ?? 0.0;
       if (budget <= 0) {
-        _showError('Please enter a valid monthly budget limit.');
+        _showModalPrompt(
+          'Invalid Budget',
+          'Please enter a valid monthly budget limit above 0.',
+          isError: true,
+        );
         return false;
       }
     }
@@ -95,25 +160,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
-      setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-      try {
-        // Use Supabase's native OAuth flow.
-        await Supabase.instance.client.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: 'https://kislap-app.vercel.app',
-        );
-
-        // Note: Because this triggers a secure browser redirect, the app will reload.
-        // Once it returns, Supabase will detect the user and log them in!
-
-      } catch (e) {
-        if (mounted) {
-          _showError('Google Sign-Up Error: $e');
-          setState(() => _isLoading = false);
-        }
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'https://kislap-app.vercel.app',
+      );
+    } catch (e) {
+      if (mounted) {
+        _showModalPrompt('Google Sign-Up Error', e.toString(), isError: true);
+        setState(() => _isLoading = false);
       }
     }
+  }
 
   Future<void> _submitRegistration() async {
     setState(() => _isLoading = true);
@@ -122,11 +182,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final tariff = double.tryParse(_tariffController.text) ?? 12.35;
 
     try {
-      // 1. Process Supabase Authentication
       User? user = Supabase.instance.client.auth.currentUser;
 
       if (!_isGoogleAuth) {
-        // Standard Email Sign-Up
         final authResponse = await Supabase.instance.client.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
@@ -139,7 +197,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
         user = authResponse.user;
       } else if (user != null) {
-        // Google Sign-Up: Update the generated profile with financial data
         await Supabase.instance.client
             .from('profiles')
             .update({
@@ -150,7 +207,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
             .eq('id', user.id);
       }
 
-      // 2. Process Local SQLite Settings
       final db = await DatabaseHelper.instance.database;
       await db.update(
         'user_settings',
@@ -163,19 +219,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
         whereArgs: [1],
       );
 
-      // 3. Trigger the Post-Registration Multi-Add Prompt
-      if (mounted) {
-        _showOnboardingPrompt();
-      }
+      if (mounted) _showOnboardingPrompt();
     } on AuthException catch (e) {
-      if (mounted) _showError(e.message);
+      if (mounted)
+        _showModalPrompt('Registration Failed', e.message, isError: true);
     } catch (e) {
-      if (mounted) _showError('An unexpected error occurred: $e');
+      if (mounted)
+        _showModalPrompt(
+          'Unexpected Error',
+          'An unexpected error occurred: $e',
+          isError: true,
+        );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // Uses your existing Setup Complete modal!
   void _showOnboardingPrompt() {
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
@@ -184,6 +244,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppColors.appYellow.withOpacity(0.5)),
+        ),
         title: const Text(
           'Setup Complete!',
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -261,19 +325,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
             elevation: 0,
             onStepContinue: () {
               if (_validateCurrentStep()) {
-                if (_currentStep < 2) {
+                if (_currentStep < 2)
                   setState(() => _currentStep += 1);
-                } else {
+                else
                   _submitRegistration();
-                }
               }
             },
             onStepCancel: () {
-              if (_currentStep > 0) {
+              if (_currentStep > 0)
                 setState(() => _currentStep -= 1);
-              } else {
+              else
                 Navigator.pop(context);
-              }
             },
             controlsBuilder: (context, details) {
               final isLastStep = _currentStep == 2;

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
-import '../admin/admin_dashboard_shell.dart'; // <-- Routing to the new Admin Shell
+import '../admin/admin_dashboard_shell.dart';
 import '../../services/sync_service.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -29,16 +28,47 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  // --- Centralized Routing & Sync Logic ---
+  // --- NEW: Reusable Modal Prompt ---
+  void _showModalPrompt(String title, String message, {bool isError = false, VoidCallback? onSuccess}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: isError ? AppColors.adminRed.withOpacity(0.3) : AppColors.appYellow.withOpacity(0.3)),
+        ),
+        title: Row(
+          children: [
+            Icon(isError ? Icons.error_outline : Icons.check_circle_outline, color: isError ? AppColors.adminRed : AppColors.appYellow, size: 28),
+            const SizedBox(width: 12),
+            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
+          ],
+        ),
+        content: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4)),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx); // Close dialog
+              if (onSuccess != null) onSuccess(); // Trigger routing if successful
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: isError ? AppColors.adminRed : AppColors.appYellow,
+              foregroundColor: isError ? Colors.white : Colors.black87,
+            ),
+            child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleSuccessfulLogin(User? user) async {
     if (user != null) {
-      // 1. Sync User's personal inventory
       await SyncService.mergeOfflineDataToCloud(user.id);
-
-      // 2. Fetch the latest Admin-controlled presets
       await SyncService.syncGlobalPresets();
 
-      // 3. Role-Based Access Control (RBAC) Check
       final profileData = await Supabase.instance.client
           .from('profiles')
           .select('role_id')
@@ -49,59 +79,45 @@ class _SignInScreenState extends State<SignInScreen> {
 
       if (mounted) {
         if (roleId == 2) {
-          // Route Admin
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AdminDashboardShell()),
-            (route) => false,
-          );
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminDashboardShell()), (route) => false);
         } else {
-          // Route Standard User
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const DashboardShell()),
-            (route) => false,
-          );
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
         }
       }
     }
   }
 
-  // --- Standard Email Sign In ---
   Future<void> _signIn() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both email and password.')),
-      );
+      _showModalPrompt('Missing Information', 'Please enter both your email and password.', isError: true);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final authResponse = await Supabase.instance.client.auth
-          .signInWithPassword(email: email, password: password);
+      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
 
-      await _handleSuccessfulLogin(authResponse.user);
+      // Trigger success modal, then route upon clicking OK
+      if (mounted) {
+        _showModalPrompt(
+          'Login Successful',
+          'Welcome back to Kislap! Let\'s get started.',
+          isError: false,
+          onSuccess: () => _handleSuccessfulLogin(authResponse.user),
+        );
+      }
+
     } on AuthException catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message),
-            backgroundColor: AppColors.adminRed,
-          ),
-        );
+      if (mounted) _showModalPrompt('Authentication Failed', e.message, isError: true);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.adminRed,
-          ),
-        );
+      if (mounted) _showModalPrompt('Unexpected Error', e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -111,24 +127,13 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // THE DEFINITIVE FIX: Use Supabase's native OAuth flow.
-      // This completely bypasses the broken Google package on the web.
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo:
-            'https://kislap-app.vercel.app', // MUST have no trailing slash
+        redirectTo: 'https://kislap-app.vercel.app',
       );
-
-      // Note: The browser will redirect to Google here.
-      // When it returns, Supabase automatically catches the session.
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google Sign-In Error: $e'),
-            backgroundColor: AppColors.adminRed,
-          ),
-        );
+        _showModalPrompt('Google Sign-In Error', e.toString(), isError: true);
         setState(() => _isLoading = false);
       }
     }
@@ -148,72 +153,28 @@ class _SignInScreenState extends State<SignInScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.show_chart_rounded,
-                size: 50,
-                color: AppColors.appYellow,
-              ),
+              const Icon(Icons.show_chart_rounded, size: 50, color: AppColors.appYellow),
               const SizedBox(height: 20),
 
-              Text(
-                'Welcome back',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-              ),
+              Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
               const SizedBox(height: 8),
-              Text(
-                'Sign in to keep tracking your usage.',
-                style: TextStyle(color: hintColor, fontSize: 14),
-              ),
+              Text('Sign in to keep tracking your usage.', style: TextStyle(color: hintColor, fontSize: 14)),
               const SizedBox(height: 40),
 
-              Text(
-                'Email',
-                style: TextStyle(
-                  color: textColor.withOpacity(0.8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Email', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              CustomTextField(
-                controller: _emailController,
-                hint: 'name@email.com',
-                icon: Icons.email_outlined,
-              ),
+              CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
               const SizedBox(height: 20),
 
-              Text(
-                'Password',
-                style: TextStyle(
-                  color: textColor.withOpacity(0.8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text('Password', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              CustomTextField(
-                controller: _passwordController,
-                hint: '••••••••',
-                icon: Icons.lock_outline,
-                isPassword: true,
-              ),
+              CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
 
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {},
-                  child: const Text(
-                    'Forgot Password?',
-                    style: TextStyle(
-                      color: AppColors.appYellow,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 10),
@@ -226,39 +187,18 @@ class _SignInScreenState extends State<SignInScreen> {
                     backgroundColor: AppColors.appYellow,
                     foregroundColor: Colors.black87,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.black87,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Sign in',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
+                    : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 30),
 
-              Center(
-                child: Text(
-                  'or continue with',
-                  style: TextStyle(color: hintColor, fontSize: 12),
-                ),
-              ),
+              Center(child: Text('or continue with', style: TextStyle(color: hintColor, fontSize: 12))),
               const SizedBox(height: 20),
 
-              // Updated Social Button Row
               SizedBox(
                 width: double.infinity,
                 child: SocialButton(
@@ -271,22 +211,13 @@ class _SignInScreenState extends State<SignInScreen> {
 
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                  ),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
                   child: Text.rich(
                     TextSpan(
                       text: 'New here? ',
                       style: TextStyle(color: hintColor, fontSize: 13),
                       children: const [
-                        TextSpan(
-                          text: 'Create an Account',
-                          style: TextStyle(
-                            color: AppColors.appYellow,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        TextSpan(text: 'Create an Account', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
