@@ -109,47 +109,51 @@ class _SignInScreenState extends State<SignInScreen> {
 
   // --- Google OAuth Sign In ---
   Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
+        setState(() => _isLoading = true);
 
-    try {
-      const String webClientId =
-          '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+        try {
+          const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+          final GoogleSignIn googleSignIn = GoogleSignIn(
+            clientId: webClientId,
+          );
 
-      await googleSignIn.initialize(clientId: webClientId);
+          // STEP 1: Trigger the Google Popup.
+          // This establishes the browser session, but Google hides the idToken here.
+          await googleSignIn.signIn();
 
-      // THE FIX: Use authenticate(), NOT signIn()
-      final googleUser = await googleSignIn.authenticate();
+          // STEP 2: Immediately request the token silently.
+          // Google recognizes the active session we just created and finally yields the idToken!
+          final googleUser = await googleSignIn.signInSilently();
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
+          if (googleUser == null) {
+            setState(() => _isLoading = false);
+            return;
+          }
+
+          final googleAuth = await googleUser.authentication;
+          final idToken = googleAuth.idToken;
+
+          if (idToken == null) throw 'Google refused to provide an ID Token.';
+
+          // STEP 3: Authenticate securely with Supabase
+          final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
+            provider: OAuthProvider.google,
+            idToken: idToken,
+          );
+
+          await _handleSuccessfulLogin(authResponse.user);
+
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed)
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
+        }
       }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null)
-        throw 'Missing Google ID Token. Check your Client ID configuration.';
-
-      final authResponse = await Supabase.instance.client.auth
-          .signInWithIdToken(provider: OAuthProvider.google, idToken: idToken);
-
-      await _handleSuccessfulLogin(authResponse.user);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google Sign-In Error: $e'),
-            backgroundColor: AppColors.adminRed,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

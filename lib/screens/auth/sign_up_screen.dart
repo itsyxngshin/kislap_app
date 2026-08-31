@@ -96,38 +96,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Future<void> _signUpWithGoogle() async {
       setState(() => _isLoading = true);
-  
+
       try {
         const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
-  
-        final GoogleSignIn googleSignIn = GoogleSignIn.instance;
-        
-        await googleSignIn.initialize(
+
+        final GoogleSignIn googleSignIn = GoogleSignIn(
           clientId: webClientId,
         );
-  
-        // THE FIX: Use authenticate(), NOT signIn()
-        final googleUser = await googleSignIn.authenticate();
-  
+
+        // 1. Establish the session
+        await googleSignIn.signIn();
+
+        // 2. Extract the hidden idToken
+        final googleUser = await googleSignIn.signInSilently();
+
         if (googleUser == null) {
           setState(() => _isLoading = false);
           return;
         }
-  
+
         final googleAuth = await googleUser.authentication;
-        final idToken = googleAuth.idToken; 
-  
-        if (idToken == null) throw 'Missing Google ID Token.';
-  
+        final idToken = googleAuth.idToken;
+
+        if (idToken == null) throw 'Google refused to provide an ID Token.';
+
+        // 3. Authenticate with Supabase
         await Supabase.instance.client.auth.signInWithIdToken(
           provider: OAuthProvider.google,
           idToken: idToken,
         );
-  
+
+        // Seamlessly advance the user to the Financial Baseline step!
         setState(() {
           _isGoogleAuth = true;
           _currentStep = 1;
         });
+
       } catch (e) {
         if (mounted) _showError('Google Sign-Up Error: $e');
       } finally {
