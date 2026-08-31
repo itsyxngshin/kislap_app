@@ -116,26 +116,25 @@ class _SignInScreenState extends State<SignInScreen> {
           '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
       final GoogleSignIn googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize(
-        clientId: webClientId,
-        serverClientId: webClientId,
-      );
 
-      final googleUser = await googleSignIn.authenticate();
+      // THE FIX: We must NOT include serverClientId on Flutter Web.
+      // This forces Google to give us the idToken directly!
+      await googleSignIn.initialize(clientId: webClientId);
+
+      // v7 API syntax
+      final googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return;
       }
 
-      // v7 FIX: Extract only the idToken.
-      final googleAuth = googleUser.authentication;
+      final googleAuth = await googleUser.authentication;
       final idToken = googleAuth.idToken;
 
       if (idToken == null)
         throw 'Missing Google ID Token. Check your Client ID configuration.';
 
-      // v7 FIX: Pass ONLY the idToken to Supabase
       final authResponse = await Supabase.instance.client.auth
           .signInWithIdToken(provider: OAuthProvider.google, idToken: idToken);
 
