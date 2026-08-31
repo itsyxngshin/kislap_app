@@ -53,14 +53,14 @@ class _SignInScreenState extends State<SignInScreen> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const AdminDashboardShell()),
-            (route) => false
+            (route) => false,
           );
         } else {
           // Route Standard User
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const DashboardShell()),
-            (route) => false
+            (route) => false,
           );
         }
       }
@@ -73,74 +73,91 @@ class _SignInScreenState extends State<SignInScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter both email and password.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter both email and password.')),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final authResponse = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      final authResponse = await Supabase.instance.client.auth
+          .signInWithPassword(email: email, password: password);
 
       await _handleSuccessfulLogin(authResponse.user);
-
     } on AuthException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.adminRed));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: AppColors.adminRed,
+          ),
+        );
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.adminRed));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
+        );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   // --- Google OAuth Sign In ---
-    Future<void> _signInWithGoogle() async {
-      setState(() => _isLoading = true);
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
 
-      try {
-        // TODO: Replace with your actual Google Cloud Web Client ID
-        const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+    try {
+      const String webClientId =
+          '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-        final GoogleSignIn googleSignIn = GoogleSignIn(
-                clientId: webClientId,
-                serverClientId: webClientId, // <-- THIS MUST BE RESTORED FOR FLUTTER WEB
-              );
+      // v7 FIX: Use the singleton instance and initialize it
+      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        clientId: webClientId,
+        serverClientId: webClientId,
+      );
 
-              final googleUser = await googleSignIn.signIn();
+      // v7 FIX: Use authenticate() instead of signIn()
+      final googleUser = await googleSignIn.authenticate();
 
-              if (googleUser == null) {
-                setState(() => _isLoading = false);
-                return;
-              }
-
-              final googleAuth = await googleUser.authentication;
-              final accessToken = googleAuth.accessToken;
-              final idToken = googleAuth.idToken;
-
-              if (idToken == null) throw 'Missing Google ID Token. Check your Client ID configuration.';
-
-              // Pass BOTH tokens to Supabase
-              final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
-                provider: OAuthProvider.google,
-                idToken: idToken,
-                accessToken: accessToken,
-              );
-
-        await _handleSuccessfulLogin(authResponse.user);
-
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed)
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
       }
+
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null)
+        throw 'Missing Google ID Token. Check your Client ID configuration.';
+
+      final authResponse = await Supabase.instance.client.auth
+          .signInWithIdToken(
+            provider: OAuthProvider.google,
+            idToken: idToken,
+            accessToken: accessToken,
+          );
+
+      await _handleSuccessfulLogin(authResponse.user);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Sign-In Error: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,37 +166,79 @@ class _SignInScreenState extends State<SignInScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        leading: const BackButton(),
-      ),
+      appBar: AppBar(leading: const BackButton()),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 10.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.show_chart_rounded, size: 50, color: AppColors.appYellow),
+              const Icon(
+                Icons.show_chart_rounded,
+                size: 50,
+                color: AppColors.appYellow,
+              ),
               const SizedBox(height: 20),
 
-              Text('Welcome back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor)),
+              Text(
+                'Welcome back',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text('Sign in to keep tracking your usage.', style: TextStyle(color: hintColor, fontSize: 14)),
+              Text(
+                'Sign in to keep tracking your usage.',
+                style: TextStyle(color: hintColor, fontSize: 14),
+              ),
               const SizedBox(height: 40),
 
-              Text('Email', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(
+                'Email',
+                style: TextStyle(
+                  color: textColor.withOpacity(0.8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
+              CustomTextField(
+                controller: _emailController,
+                hint: 'name@email.com',
+                icon: Icons.email_outlined,
+              ),
               const SizedBox(height: 20),
 
-              Text('Password', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(
+                'Password',
+                style: TextStyle(
+                  color: textColor.withOpacity(0.8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              CustomTextField(controller: _passwordController, hint: '••••••••', icon: Icons.lock_outline, isPassword: true),
+              CustomTextField(
+                controller: _passwordController,
+                hint: '••••••••',
+                icon: Icons.lock_outline,
+                isPassword: true,
+              ),
 
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {},
-                  child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      color: AppColors.appYellow,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -192,16 +251,36 @@ class _SignInScreenState extends State<SignInScreen> {
                     backgroundColor: AppColors.appYellow,
                     foregroundColor: Colors.black87,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isLoading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
-                    : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.black87,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Sign in',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 30),
 
-              Center(child: Text('or continue with', style: TextStyle(color: hintColor, fontSize: 12))),
+              Center(
+                child: Text(
+                  'or continue with',
+                  style: TextStyle(color: hintColor, fontSize: 12),
+                ),
+              ),
               const SizedBox(height: 20),
 
               // Updated Social Button Row
@@ -217,13 +296,22 @@ class _SignInScreenState extends State<SignInScreen> {
 
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  ),
                   child: Text.rich(
                     TextSpan(
                       text: 'New here? ',
                       style: TextStyle(color: hintColor, fontSize: 13),
                       children: const [
-                        TextSpan(text: 'Create an Account', style: TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold)),
+                        TextSpan(
+                          text: 'Create an Account',
+                          style: TextStyle(
+                            color: AppColors.appYellow,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
