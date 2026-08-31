@@ -95,49 +95,48 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
-      setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-      try {
-        const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+    try {
+      const String webClientId =
+          '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-        final GoogleSignIn googleSignIn = GoogleSignIn(
-          clientId: webClientId,
-        );
+      // 1. v7 FIX: Use the singleton instance
+      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-        // 1. Establish the session
-        await googleSignIn.signIn();
+      // 2. Initialize with ONLY the clientId
+      await googleSignIn.initialize(clientId: webClientId);
 
-        // 2. Extract the hidden idToken
-        final googleUser = await googleSignIn.signInSilently();
+      // 3. v7 FIX: Use authenticate() instead of the removed signIn() method
+      final googleUser = await googleSignIn.authenticate();
 
-        if (googleUser == null) {
-          setState(() => _isLoading = false);
-          return;
-        }
-
-        final googleAuth = await googleUser.authentication;
-        final idToken = googleAuth.idToken;
-
-        if (idToken == null) throw 'Google refused to provide an ID Token.';
-
-        // 3. Authenticate with Supabase
-        await Supabase.instance.client.auth.signInWithIdToken(
-          provider: OAuthProvider.google,
-          idToken: idToken,
-        );
-
-        // Seamlessly advance the user to the Financial Baseline step!
-        setState(() {
-          _isGoogleAuth = true;
-          _currentStep = 1;
-        });
-
-      } catch (e) {
-        if (mounted) _showError('Google Sign-Up Error: $e');
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
       }
+
+      // 4. Extract the idToken
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) throw 'Missing Google ID Token.';
+
+      // 5. Authenticate with Supabase
+      await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+
+      setState(() {
+        _isGoogleAuth = true;
+        _currentStep = 1;
+      });
+    } catch (e) {
+      if (mounted) _showError('Google Sign-Up Error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
 
   Future<void> _submitRegistration() async {
     setState(() => _isLoading = true);

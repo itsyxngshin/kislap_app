@@ -107,36 +107,36 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  // --- Google OAuth Sign In ---
   Future<void> _signInWithGoogle() async {
         setState(() => _isLoading = true);
 
         try {
           const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-          final GoogleSignIn googleSignIn = GoogleSignIn(
+          // 1. v7 FIX: Use the singleton instance (Constructor is gone!)
+          final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+
+          // 2. Initialize with ONLY the clientId.
+          // NO serverClientId! This forces Google to give us the idToken.
+          await googleSignIn.initialize(
             clientId: webClientId,
           );
 
-          // STEP 1: Trigger the Google Popup.
-          // This establishes the browser session, but Google hides the idToken here.
-          await googleSignIn.signIn();
-
-          // STEP 2: Immediately request the token silently.
-          // Google recognizes the active session we just created and finally yields the idToken!
-          final googleUser = await googleSignIn.signInSilently();
+          // 3. v7 FIX: Use authenticate() instead of the removed signIn() method
+          final googleUser = await googleSignIn.authenticate();
 
           if (googleUser == null) {
             setState(() => _isLoading = false);
             return;
           }
 
+          // 4. Extract the idToken
           final googleAuth = await googleUser.authentication;
           final idToken = googleAuth.idToken;
 
-          if (idToken == null) throw 'Google refused to provide an ID Token.';
+          if (idToken == null) throw 'Missing Google ID Token. Check your Client ID configuration.';
 
-          // STEP 3: Authenticate securely with Supabase
+          // 5. Authenticate with Supabase
           final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
             provider: OAuthProvider.google,
             idToken: idToken,
