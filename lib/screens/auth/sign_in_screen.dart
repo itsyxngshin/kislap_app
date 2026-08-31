@@ -117,12 +117,10 @@ class _SignInScreenState extends State<SignInScreen> {
 
       final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-      // THE FIX: We must NOT include serverClientId on Flutter Web.
-      // This forces Google to give us the idToken directly!
       await googleSignIn.initialize(clientId: webClientId);
 
-      // v7 API syntax
-      final googleUser = await googleSignIn.signIn();
+      // THE FIX: Use authenticate(), NOT signIn()
+      final googleUser = await googleSignIn.authenticate();
 
       if (googleUser == null) {
         setState(() => _isLoading = false);
