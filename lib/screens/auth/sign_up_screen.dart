@@ -75,50 +75,50 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return true;
   }
 
-  // --- Google OAuth Sign Up ---
   Future<void> _signUpWithGoogle() async {
-    setState(() => _isLoading = true);
+      setState(() => _isLoading = true);
 
-    try {
-      // TODO: Replace with your actual Google Cloud Web Client ID
-      const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+      try {
+        // TODO: Replace with your actual Google Cloud Web Client ID
+        const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
 
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: webClientId,
-        serverClientId: webClientId,
-      );
+        // FIX: Only use clientId on Flutter Web!
+        // Do NOT include serverClientId, as it breaks the Supabase token verification on browsers.
+        final GoogleSignIn googleSignIn = GoogleSignIn(
+          clientId: webClientId,
+        );
 
-      final googleUser = await googleSignIn.signIn();
+        final googleUser = await googleSignIn.signIn();
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
+        if (googleUser == null) {
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final googleAuth = await googleUser.authentication;
+        final idToken = googleAuth.idToken; // We only need the ID token
+
+        if (idToken == null) throw 'Missing Google ID Token.';
+
+        // FIX: Only pass the idToken to Supabase. Google Web often omits the accessToken
+        // which causes Supabase to fail if you try to pass it a null value.
+        await Supabase.instance.client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+        );
+
+        // If successful, flag as Google Auth and force advance to Step 2
+        setState(() {
+          _isGoogleAuth = true;
+          _currentStep = 1;
+        });
+
+      } catch (e) {
+        if (mounted) _showError('Google Sign-Up Error: $e');
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) throw 'Missing Google ID Token.';
-
-      await Supabase.instance.client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      // If successful, flag as Google Auth and force advance to Step 2
-      setState(() {
-        _isGoogleAuth = true;
-        _currentStep = 1;
-      });
-
-    } catch (e) {
-      if (mounted) _showError('Google Sign-Up Error: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
 
   Future<void> _submitRegistration() async {
     setState(() => _isLoading = true);
