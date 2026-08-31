@@ -95,42 +95,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
-    setState(() => _isLoading = true);
+      setState(() => _isLoading = true);
 
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+      try {
+        // Use Supabase's native OAuth flow.
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'https://kislap-app.vercel.app',
+        );
 
-      // FIX: Removed the .initialize() block here completely!
-      // It jumps directly to authenticate() using the global session.
-      final googleUser = await googleSignIn.authenticate();
+        // Note: Because this triggers a secure browser redirect, the app will reload.
+        // Once it returns, Supabase will detect the user and log them in!
 
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
+      } catch (e) {
+        if (mounted) {
+          _showError('Google Sign-Up Error: $e');
+          setState(() => _isLoading = false);
+        }
       }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) throw 'Missing Google ID Token.';
-
-      // Authenticate with Supabase using the successfully extracted token
-      await Supabase.instance.client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-      );
-
-      // Advance the stepper to the Financial Baseline screen
-      setState(() {
-        _isGoogleAuth = true;
-        _currentStep = 1;
-      });
-    } catch (e) {
-      if (mounted) _showError('Google Sign-Up Error: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
 
   Future<void> _submitRegistration() async {
     setState(() => _isLoading = true);

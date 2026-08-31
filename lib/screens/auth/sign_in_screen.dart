@@ -111,25 +111,16 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+      // THE DEFINITIVE FIX: Use Supabase's native OAuth flow.
+      // This completely bypasses the broken Google package on the web.
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo:
+            'https://kislap-app.vercel.app', // MUST have no trailing slash
+      );
 
-      // Removed .initialize() here because it is initialized globally in main.dart!
-      final googleUser = await googleSignIn.authenticate();
-
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) throw 'Missing Google ID Token.';
-
-      final authResponse = await Supabase.instance.client.auth
-          .signInWithIdToken(provider: OAuthProvider.google, idToken: idToken);
-
-      await _handleSuccessfulLogin(authResponse.user);
+      // Note: The browser will redirect to Google here.
+      // When it returns, Supabase automatically catches the session.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,9 +129,8 @@ class _SignInScreenState extends State<SignInScreen> {
             backgroundColor: AppColors.adminRed,
           ),
         );
+        setState(() => _isLoading = false);
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
