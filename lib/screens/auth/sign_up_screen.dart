@@ -98,16 +98,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      const String webClientId =
-          '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
-
-      // 1. v7 FIX: Use the singleton instance
       final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-      // 2. Initialize with ONLY the clientId
-      await googleSignIn.initialize(clientId: webClientId);
-
-      // 3. v7 FIX: Use authenticate() instead of the removed signIn() method
+      // FIX: Removed the .initialize() block here completely!
+      // It jumps directly to authenticate() using the global session.
       final googleUser = await googleSignIn.authenticate();
 
       if (googleUser == null) {
@@ -115,18 +109,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      // 4. Extract the idToken
       final googleAuth = await googleUser.authentication;
       final idToken = googleAuth.idToken;
 
       if (idToken == null) throw 'Missing Google ID Token.';
 
-      // 5. Authenticate with Supabase
+      // Authenticate with Supabase using the successfully extracted token
       await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
       );
 
+      // Advance the stepper to the Financial Baseline screen
       setState(() {
         _isGoogleAuth = true;
         _currentStep = 1;

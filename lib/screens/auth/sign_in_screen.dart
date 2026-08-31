@@ -108,52 +108,41 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
-        setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-        try {
-          const String webClientId = '432365905330-58fcs36ju3unt612k8r5vhmpf7neh3ja.apps.googleusercontent.com';
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
-          // 1. v7 FIX: Use the singleton instance (Constructor is gone!)
-          final GoogleSignIn googleSignIn = GoogleSignIn.instance;
+      // Removed .initialize() here because it is initialized globally in main.dart!
+      final googleUser = await googleSignIn.authenticate();
 
-          // 2. Initialize with ONLY the clientId.
-          // NO serverClientId! This forces Google to give us the idToken.
-          await googleSignIn.initialize(
-            clientId: webClientId,
-          );
-
-          // 3. v7 FIX: Use authenticate() instead of the removed signIn() method
-          final googleUser = await googleSignIn.authenticate();
-
-          if (googleUser == null) {
-            setState(() => _isLoading = false);
-            return;
-          }
-
-          // 4. Extract the idToken
-          final googleAuth = await googleUser.authentication;
-          final idToken = googleAuth.idToken;
-
-          if (idToken == null) throw 'Missing Google ID Token. Check your Client ID configuration.';
-
-          // 5. Authenticate with Supabase
-          final authResponse = await Supabase.instance.client.auth.signInWithIdToken(
-            provider: OAuthProvider.google,
-            idToken: idToken,
-          );
-
-          await _handleSuccessfulLogin(authResponse.user);
-
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Google Sign-In Error: $e'), backgroundColor: AppColors.adminRed)
-            );
-          }
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
-        }
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
       }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) throw 'Missing Google ID Token.';
+
+      final authResponse = await Supabase.instance.client.auth
+          .signInWithIdToken(provider: OAuthProvider.google, idToken: idToken);
+
+      await _handleSuccessfulLogin(authResponse.user);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Sign-In Error: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
