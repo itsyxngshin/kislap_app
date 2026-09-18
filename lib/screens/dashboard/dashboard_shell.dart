@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/navigation_provider.dart'; // <-- Added Provider
 import '../../services/database_helper.dart';
 import '../auth/lockdown_screen.dart';
 import '../auth/tutorial_screen.dart';
@@ -22,8 +23,6 @@ class DashboardShell extends ConsumerStatefulWidget {
 }
 
 class _DashboardShellState extends ConsumerState<DashboardShell> {
-  int _currentIndex = 0;
-
   final List<Widget> _screens = [
     const HomeScreen(),
     const DevicesScreen(),
@@ -163,16 +162,18 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch the global tab index state
+    final currentIndex = ref.watch(dashboardTabProvider);
+
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
-    // REMOVED AppTheme.globalBackground Container. Returning standard Scaffold.
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       extendBody: true,
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex, // Controlled by Riverpod
         children: _screens,
       ),
       bottomNavigationBar: Padding(
@@ -191,11 +192,11 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNavItem(Icons.home_outlined, Icons.home, isPh ? 'Buod' : 'Home', 0, textColor, hintColor),
-                  _buildNavItem(Icons.electrical_services_outlined, Icons.electrical_services, isPh ? 'Mga Gamit' : 'Devices', 1, textColor, hintColor),
-                  _buildNavItem(Icons.show_chart, Icons.show_chart_rounded, isPh ? 'Pagsusuri' : 'Analysis', 2, textColor, hintColor),
-                  _buildNavItem(Icons.receipt_long_outlined, Icons.receipt_long, isPh ? 'Mga Ulat' : 'Reports', 3, textColor, hintColor),
-                  _buildNavItem(Icons.settings_outlined, Icons.settings, isPh ? 'Setting' : 'Settings', 4, textColor, hintColor),
+                  _buildNavItem(Icons.home_outlined, Icons.home, isPh ? 'Buod' : 'Home', 0, currentIndex, textColor, hintColor),
+                  _buildNavItem(Icons.electrical_services_outlined, Icons.electrical_services, isPh ? 'Mga Gamit' : 'Devices', 1, currentIndex, textColor, hintColor),
+                  _buildNavItem(Icons.show_chart, Icons.show_chart_rounded, isPh ? 'Pagsusuri' : 'Analysis', 2, currentIndex, textColor, hintColor),
+                  _buildNavItem(Icons.receipt_long_outlined, Icons.receipt_long, isPh ? 'Mga Ulat' : 'Reports', 3, currentIndex, textColor, hintColor),
+                  _buildNavItem(Icons.settings_outlined, Icons.settings, isPh ? 'Setting' : 'Settings', 4, currentIndex, textColor, hintColor),
                 ],
               ),
             ),
@@ -205,10 +206,13 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index, Color textColor, Color hintColor) {
-    final isSelected = _currentIndex == index;
+  Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index, int currentIndex, Color textColor, Color hintColor) {
+    final isSelected = currentIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () {
+        // Update the global state when a user taps a tab
+        ref.read(dashboardTabProvider.notifier).state = index;
+      },
       behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

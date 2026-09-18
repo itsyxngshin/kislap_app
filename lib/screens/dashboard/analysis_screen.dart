@@ -6,6 +6,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 
 enum TimeView { daily, weekly, monthly }
+
 class AnalysisScreen extends ConsumerStatefulWidget {
   const AnalysisScreen({super.key});
 
@@ -70,22 +71,70 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     if (lower.contains('aircon') || lower.contains('ac')) return Icons.ac_unit;
     if (lower.contains('fan')) return Icons.mode_fan_off_outlined;
     if (lower.contains('tv') || lower.contains('television')) return Icons.tv;
-    if (lower.contains('fridge') || lower.contains('refrigerator'))
-      return Icons.kitchen;
-    if (lower.contains('light') || lower.contains('bulb'))
-      return Icons.lightbulb_outline;
+    if (lower.contains('fridge') || lower.contains('refrigerator')) return Icons.kitchen;
+    if (lower.contains('light') || lower.contains('bulb')) return Icons.lightbulb_outline;
     if (lower.contains('wash')) return Icons.local_laundry_service_outlined;
-    if (lower.contains('laptop') || lower.contains('computer'))
-      return Icons.computer;
+    if (lower.contains('laptop') || lower.contains('computer')) return Icons.computer;
     return Icons.electrical_services;
+  }
+
+  // --- STUNNING TIME OF DAY HEADER ---
+  Widget _buildTimeOfDayHeader(bool isPh, Color textColor, Color hintColor) {
+    final hour = DateTime.now().hour;
+    String greeting;
+    IconData timeIcon;
+    List<Color> gradientColors;
+
+    if (hour < 12) {
+      greeting = isPh ? 'Magandang Umaga' : 'Good Morning';
+      timeIcon = Icons.wb_sunny_rounded;
+      gradientColors = [Colors.orange.shade300, Colors.yellow.shade500];
+    } else if (hour < 17) {
+      greeting = isPh ? 'Magandang Hapon' : 'Good Afternoon';
+      timeIcon = Icons.brightness_5_rounded;
+      gradientColors = [Colors.deepOrange.shade400, Colors.orange.shade300];
+    } else {
+      greeting = isPh ? 'Magandang Gabi' : 'Good Evening';
+      timeIcon = Icons.nights_stay_rounded;
+      gradientColors = [Colors.indigo.shade400, Colors.deepPurple.shade400];
+    }
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: gradientColors.first.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Icon(timeIcon, color: Colors.white, size: 28),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(greeting, style: TextStyle(fontSize: 14, color: hintColor, letterSpacing: 0.5)),
+            Text(isPh ? 'Pagsusuri' : 'Analysis', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textColor, letterSpacing: 0.5)),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // --- LIGHT MODE ADAPTIVE LOGIC ---
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isPh = ref.watch(settingsProvider).language == 'ph';
+
+    // Premium adaptive colors depending on Light/Dark theme
+    final Color successColor = isDark ? Colors.greenAccent : Colors.green.shade700;
+    final Color warningColor = isDark ? AppColors.adminRed : Colors.red.shade700;
+    final Color neutralColor = isDark ? AppColors.appYellow : Colors.orange.shade800;
 
     if (_isLoading) {
       return Scaffold(
@@ -102,32 +151,18 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     double optimizedDailyKwh = 0;
 
     for (var device in devices) {
-      // FIX: Base math accounts for quantity
       final double kw = (device.presetWattage * device.quantity) / 1000;
       originalDailyKwh += kw * device.userAssignedHours;
       optimizedDailyKwh += kw * device.adjustedHours;
     }
 
-    // Sort Logic execution
     List<dynamic> sortedDevices = List.from(devices);
     if (_sortOrder == 'Highest kWh') {
-      sortedDevices.sort(
-        (a, b) => ((b.presetWattage * b.quantity * b.adjustedHours)).compareTo(
-          a.presetWattage * a.quantity * a.adjustedHours,
-        ),
-      );
+      sortedDevices.sort((a, b) => ((b.presetWattage * b.quantity * b.adjustedHours)).compareTo(a.presetWattage * a.quantity * a.adjustedHours));
     } else if (_sortOrder == 'Lowest kWh') {
-      sortedDevices.sort(
-        (a, b) => ((a.presetWattage * a.quantity * a.adjustedHours)).compareTo(
-          b.presetWattage * b.quantity * b.adjustedHours,
-        ),
-      );
+      sortedDevices.sort((a, b) => ((a.presetWattage * a.quantity * a.adjustedHours)).compareTo(b.presetWattage * b.quantity * b.adjustedHours));
     } else if (_sortOrder == 'Name (A-Z)') {
-      sortedDevices.sort(
-        (a, b) => a.customName.toString().toLowerCase().compareTo(
-          b.customName.toString().toLowerCase(),
-        ),
-      );
+      sortedDevices.sort((a, b) => a.customName.toString().toLowerCase().compareTo(b.customName.toString().toLowerCase()));
     }
 
     final double optimizedWeeklyKwh = optimizedDailyKwh * 7;
@@ -144,25 +179,25 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
     String trendTitle = '';
     String trendDesc = '';
-    Color trendColor = Colors.greenAccent;
+    Color trendColor = successColor;
     IconData trendIcon = Icons.trending_down;
 
     if (isOverBudget) {
-      trendColor = AppColors.adminRed;
+      trendColor = warningColor;
       trendIcon = Icons.warning_amber_rounded;
       trendTitle = isPh ? 'Sumobra sa Budget' : 'Budget Exceeded';
       trendDesc = isPh
           ? 'Kahit na may optimization, ang iyong mga naka-lock na appliances ay lalampas sa ₱${_targetBudget.toStringAsFixed(0)} na budget. Maaari mong i-unlock ang ilang gamit.'
           : 'Even with optimization, your essential (locked) appliances exceed your ₱${_targetBudget.toStringAsFixed(0)} budget. Consider unlocking items.';
     } else if (isSaving) {
-      trendColor = Colors.greenAccent;
+      trendColor = successColor;
       trendIcon = Icons.trending_down;
       trendTitle = isPh ? 'Bumaba ang Konsumo' : 'Decreased Usage Trend';
       trendDesc = isPh
           ? 'Dahil sa optimization, nakatipid ka ng ₱${monthlySavings.toStringAsFixed(0)} sa inaasahang buwanang bill. Pasok na pasok ka sa iyong budget.'
           : 'By optimizing your schedule, your projected monthly bill decreases by ₱${monthlySavings.toStringAsFixed(0)}. You are staying safely within your budget.';
     } else {
-      trendColor = AppColors.appYellow;
+      trendColor = neutralColor;
       trendIcon = Icons.trending_flat;
       trendTitle = isPh ? 'Walang Bawas sa Konsumo' : 'Stable Usage Trend';
       trendDesc = isPh
@@ -178,21 +213,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           padding: const EdgeInsets.only(
             left: 24,
             right: 24,
-            top: 20,
+            top: 30,
             bottom: 120,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                isPh ? 'Pagsusuri' : 'Analysis',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                  height: 1.2,
-                ),
-              ),
+              _buildTimeOfDayHeader(isPh, textColor, hintColor),
               const SizedBox(height: 25),
 
               Text(
@@ -201,15 +228,16 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   color: hintColor,
                   fontSize: 11,
                   letterSpacing: 1.2,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: trendColor.withOpacity(0.1),
+                  color: isDark ? trendColor.withOpacity(0.1) : trendColor.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: trendColor.withOpacity(0.3)),
+                  border: Border.all(color: isDark ? trendColor.withOpacity(0.3) : trendColor.withOpacity(0.5)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,9 +262,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     Text(
                       trendDesc,
                       style: TextStyle(
-                        color: textColor,
+                        color: isDark ? textColor : trendColor.withOpacity(0.9),
                         fontSize: 13,
                         height: 1.4,
+                        fontWeight: isDark ? FontWeight.normal : FontWeight.w500,
                       ),
                     ),
                   ],
@@ -250,14 +279,17 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   color: hintColor,
                   fontSize: 11,
                   letterSpacing: 1.2,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: surfaceColor.withOpacity(0.5),
+                  color: isDark ? surfaceColor.withOpacity(0.5) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
+                  boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: Column(
                   children: [
@@ -268,7 +300,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       textColor,
                       hintColor,
                     ),
-                    const Divider(color: Colors.white12, height: 24),
+                    Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
                     _buildSummaryRow(
                       isPh ? 'Lingguhan' : 'Weekly',
                       optimizedWeeklyKwh,
@@ -276,12 +308,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       textColor,
                       hintColor,
                     ),
-                    const Divider(color: Colors.white12, height: 24),
+                    Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
                     _buildSummaryRow(
                       isPh ? 'Buwanan' : 'Monthly',
                       optimizedMonthlyKwh,
                       optimizedMonthlyCost,
-                      AppColors.appYellow,
+                      neutralColor,
                       hintColor,
                       isBold: true,
                     ),
@@ -295,11 +327,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.appYellow.withOpacity(0.05),
+                    color: isDark ? neutralColor.withOpacity(0.05) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: AppColors.appYellow.withOpacity(0.3),
+                      color: isDark ? neutralColor.withOpacity(0.3) : Colors.black.withOpacity(0.05),
                     ),
+                    boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     children: [
@@ -308,9 +341,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.calculate_outlined,
-                                color: AppColors.appYellow,
+                                color: neutralColor,
                                 size: 22,
                               ),
                               const SizedBox(width: 12),
@@ -318,8 +351,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                                 isPh
                                     ? 'PAANO KINAKALKULA NG KISLAP'
                                     : 'HOW KISLAP COMPUTES',
-                                style: const TextStyle(
-                                  color: AppColors.appYellow,
+                                style: TextStyle(
+                                  color: neutralColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1.0,
@@ -337,16 +370,18 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       ),
                       if (_showFormulas) ...[
                         const SizedBox(height: 16),
-                        Divider(color: AppColors.appYellow.withOpacity(0.2)),
+                        Divider(color: isDark ? neutralColor.withOpacity(0.2) : Colors.black12),
                         const SizedBox(height: 16),
                         _buildMathRow(
                           isPh ? '1. Kuryente (kWh)' : '1. Consumption (kWh)',
                           isPh
                               ? 'Paano kinukuha ang pang-araw-araw na konsumo:'
                               : 'How daily power usage is determined:',
-                          '(Wattage × Quantity ÷ 1000) × Hours', // FIX: Explicitly documents Quantity in math
+                          '(Wattage × Quantity ÷ 1000) × Hours',
                           textColor,
                           hintColor,
+                          isDark,
+                          successColor,
                         ),
                         const SizedBox(height: 16),
                         _buildMathRow(
@@ -359,6 +394,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           'Remaining Budget ÷ Unlocked kWh',
                           textColor,
                           hintColor,
+                          isDark,
+                          successColor,
                         ),
                         const SizedBox(height: 16),
                         _buildMathRow(
@@ -369,6 +406,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           'Total kWh × Tariff Rate (₱/kWh)',
                           textColor,
                           hintColor,
+                          isDark,
+                          successColor,
                         ),
                       ],
                     ],
@@ -377,7 +416,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               ),
               const SizedBox(height: 30),
 
-              // NEW: Sorted Appliance Breakdown
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -387,11 +425,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       color: hintColor,
                       fontSize: 11,
                       letterSpacing: 1.2,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   PopupMenuButton<String>(
                     icon: Icon(Icons.sort, color: hintColor, size: 20),
-                    color: surfaceColor,
+                    color: isDark ? Colors.grey.shade900 : Colors.white,
                     onSelected: (val) => setState(() => _sortOrder = val),
                     itemBuilder: (context) => [
                       PopupMenuItem(
@@ -425,10 +464,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 final bool isReduced =
                     device.adjustedHours < device.userAssignedHours;
                 final Color statusColor = device.isLocked
-                    ? AppColors.appYellow
-                    : (isReduced ? Colors.orange : Colors.greenAccent);
+                    ? neutralColor
+                    : (isReduced ? Colors.orange : successColor);
 
-                // Multiply by Quantity to show the true total impact in the breakdown
                 final double devKw =
                     (device.presetWattage * device.quantity) / 1000;
                 final double devDailyKwh = devKw * device.adjustedHours;
@@ -439,13 +477,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: surfaceColor.withOpacity(0.4),
+                    color: isDark ? surfaceColor.withOpacity(0.4) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: device.isLocked
-                          ? AppColors.appYellow.withOpacity(0.3)
-                          : Colors.transparent,
+                          ? neutralColor.withOpacity(0.4)
+                          : (isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
                     ),
+                    boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,8 +560,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.black12,
-                          borderRadius: BorderRadius.circular(8),
+                          color: isDark ? Colors.black12 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -533,6 +572,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                               devDailyKwh * _activeRate,
                               textColor,
                               hintColor,
+                              successColor,
                             ),
                             _buildStatCol(
                               isPh ? 'Lingguhan' : 'Weekly',
@@ -540,6 +580,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                               devWeeklyKwh * _activeRate,
                               textColor,
                               hintColor,
+                              successColor,
                             ),
                             _buildStatCol(
                               isPh ? 'Buwanan' : 'Monthly',
@@ -547,6 +588,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                               devMonthlyKwh * _activeRate,
                               textColor,
                               hintColor,
+                              successColor,
                             ),
                           ],
                         ),
@@ -566,7 +608,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     String label,
     double kwh,
     double cost,
-    Color mainColor,
+    Color textColor,
     Color hintColor, {
     bool isBold = false,
   }) {
@@ -594,7 +636,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 '₱${cost.toStringAsFixed(2)}',
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                  color: mainColor,
+                  color: textColor,
                   fontSize: isBold ? 16 : 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -612,6 +654,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     double cost,
     Color textColor,
     Color hintColor,
+    Color successColor,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -632,8 +675,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         Text(
           '₱${cost.toStringAsFixed(0)}',
           style: TextStyle(
-            color: Colors.greenAccent.withOpacity(0.8),
+            color: successColor,
             fontSize: 12,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ],
@@ -646,6 +690,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     String formula,
     Color textColor,
     Color hintColor,
+    bool isDark,
+    Color successColor,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,13 +714,14 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black26,
+            color: isDark ? Colors.black26 : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isDark ? Colors.transparent : Colors.black.withOpacity(0.05)),
           ),
           child: Text(
             formula,
-            style: const TextStyle(
-              color: Colors.greenAccent,
+            style: TextStyle(
+              color: successColor,
               fontSize: 12,
               fontFamily: 'monospace',
               fontWeight: FontWeight.bold,
