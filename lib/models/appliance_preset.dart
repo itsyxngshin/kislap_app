@@ -1,7 +1,6 @@
 class AppliancePreset {
   final String name;
-  final double
-  estimatedWatts; // FIX: Changed to double to match database structure
+  final double estimatedWatts;
   final String category;
 
   AppliancePreset({
@@ -11,7 +10,7 @@ class AppliancePreset {
   });
 }
 
-// Updated to match the comprehensive PH audit data injected into SQLite
+// 2. Your massive 170-item PH Audit database
 final List<Map<String, dynamic>> updatedPresets = [
   {'category': 'Cooling & Air Conditioning', 'appliance_name': 'Stand Fan / Orbit Fan', 'preset_wattage': 65.0, 'min_wattage': 55.0, 'max_wattage': 75.0},
   {'category': 'Cooling & Air Conditioning', 'appliance_name': 'Desk Fan', 'preset_wattage': 40.0, 'min_wattage': 30.0, 'max_wattage': 45.0},
@@ -184,3 +183,13 @@ final List<Map<String, dynamic>> updatedPresets = [
   {'category': 'Home Office & Utilities', 'appliance_name': 'Laser Printer', 'preset_wattage': 550.0, 'min_wattage': 400.0, 'max_wattage': 700.0},
   {'category': 'Vintage & Retro Household Appliances', 'appliance_name': 'Vintage Halogen Floodlight Torch', 'preset_wattage': 1000.0, 'min_wattage': 500.0, 'max_wattage': 1500.0},
 ];
+
+// 3. THE BRIDGE: We dynamically convert the new list into the old format
+// This single line stops OnboardingDevicesScreen from crashing entirely!
+final List<AppliancePreset> commonAppliances = updatedPresets
+    .map((e) => AppliancePreset(
+          name: e['appliance_name'],
+          estimatedWatts: e['preset_wattage'],
+          category: e['category'],
+        ))
+    .toList();
