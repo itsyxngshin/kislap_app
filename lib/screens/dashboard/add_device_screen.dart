@@ -121,15 +121,16 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
       // 3. Add devices sequentially based on Quantity
       // This separates them in the DB so users can lock/unlock individual units later!
       for (int i = 0; i < _quantity; i++) {
-        String displayName = _quantity > 1 ? '$baseName (#${i + 1})' : baseName;
-
-        await inventoryNotifier.addAppliance(
-          presetId: presetId ?? 9999, // Fallback ID for custom
-          customName: displayName,
-          defaultHours: hours,
-          wattage: finalWattage,
-        );
-      }
+              String displayName = _quantity > 1 ? '$baseName (#${i + 1})' : baseName;
+              
+              await inventoryNotifier.addAppliance(
+                presetId: presetId ?? 9999, 
+                customName: displayName,
+                defaultHours: hours,
+                wattage: finalWattage,
+                quantity: 1, // <--- ADD THIS EXACT LINE
+              );
+            }
 
       if (mounted) {
         Navigator.pop(context);
