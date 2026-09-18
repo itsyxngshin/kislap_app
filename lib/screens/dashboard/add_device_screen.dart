@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../services/database_helper.dart';
 import '../../providers/inventory_provider.dart';
+import '../../providers/settings_provider.dart'; // <-- Added for language compliance
 
 enum ApplianceInputMode { preset, slider, free }
 
@@ -15,12 +16,10 @@ class AddDeviceScreen extends ConsumerStatefulWidget {
 }
 
 class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
-  // Input Controllers
   final TextEditingController _customNameController = TextEditingController();
   final TextEditingController _hoursController = TextEditingController();
   final TextEditingController _customWattageController = TextEditingController();
 
-  // State Variables
   ApplianceInputMode _currentMode = ApplianceInputMode.preset;
   Map<String, dynamic>? _selectedPreset;
   late Future<List<Map<String, dynamic>>> _presetsFuture;
@@ -28,7 +27,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
   bool _isSaving = false;
   int _quantity = 1;
   double _sliderWattage = 0.0;
-  double _maxSliderWattage = 2000.0; // Dynamic based on preset's max_wattage
+  double _maxSliderWattage = 2000.0;
 
   @override
   void initState() {
@@ -55,7 +54,6 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
         }
 
         final double baseWattage = (preset['preset_wattage'] as num).toDouble();
-        // Uses the database's max_wattage if available, otherwise safely doubles the base as fallback
         _maxSliderWattage = preset.containsKey('max_wattage')
             ? (preset['max_wattage'] as num).toDouble()
             : baseWattage * 2.0;
@@ -66,29 +64,30 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
   }
 
   void _saveDevice() async {
-    // 1. Validation based on mode
+    // Read the current language state for localized snackbars
+    final isPh = ref.read(settingsProvider).language == 'ph';
+
     if (_currentMode != ApplianceInputMode.free && _selectedPreset == null) {
-      _showError('Please select an appliance from the catalog.');
+      _showError(isPh ? 'Pumili ng gamit mula sa listahan.' : 'Please select an appliance from the catalog.');
       return;
     }
 
     if (_currentMode == ApplianceInputMode.free && _customWattageController.text.trim().isEmpty) {
-      _showError('Please enter a custom wattage.');
+      _showError(isPh ? 'Ilagay ang iyong custom na wattage.' : 'Please enter a custom wattage.');
       return;
     }
 
     if (_customNameController.text.trim().isEmpty || _hoursController.text.trim().isEmpty) {
-      _showError('Please complete all fields. (Kumpletuhin ang form.)');
+      _showError(isPh ? 'Pakikumpleto ang lahat ng field.' : 'Please complete all fields.');
       return;
     }
 
     final double hours = double.tryParse(_hoursController.text) ?? 0.0;
     if (hours <= 0 || hours > 24) {
-      _showError('Enter valid hours per day (1-24).');
+      _showError(isPh ? 'Maglagay ng tamang oras (1-24).' : 'Enter valid hours per day (1-24).');
       return;
     }
 
-    // 2. Determine Final Wattage based on the selected UI mode
     double finalWattage = 0.0;
     int? presetId;
 
@@ -103,12 +102,12 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
         break;
       case ApplianceInputMode.free:
         finalWattage = double.tryParse(_customWattageController.text) ?? 0.0;
-        presetId = null; // Free input doesn't map strictly to a catalog ID
+        presetId = null;
         break;
     }
 
     if (finalWattage <= 0) {
-      _showError('Wattage must be greater than 0.');
+      _showError(isPh ? 'Ang wattage ay dapat higit sa 0.' : 'Wattage must be greater than 0.');
       return;
     }
 
@@ -118,28 +117,30 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
       final inventoryNotifier = ref.read(inventoryProvider.notifier);
       final String baseName = _customNameController.text.trim();
 
-      // 3. Add devices sequentially based on Quantity
-      // This separates them in the DB so users can lock/unlock individual units later!
+      // Add devices sequentially with quantity set to 1 for individual locking
       for (int i = 0; i < _quantity; i++) {
-              String displayName = _quantity > 1 ? '$baseName (#${i + 1})' : baseName;
-              
-              await inventoryNotifier.addAppliance(
-                presetId: presetId ?? 9999, 
-                customName: displayName,
-                defaultHours: hours,
-                wattage: finalWattage,
-                quantity: 1, // <--- ADD THIS EXACT LINE
-              );
-            }
+        String displayName = _quantity > 1 ? '$baseName (#${i + 1})' : baseName;
+
+        await inventoryNotifier.addAppliance(
+          presetId: presetId ?? 9999,
+          customName: displayName,
+          defaultHours: hours,
+          wattage: finalWattage,
+          quantity: 1, // <-- Kept the build compiler fix
+        );
+      }
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('$_quantity device(s) added successfully!'), backgroundColor: Colors.green),
+           SnackBar(
+             content: Text(isPh ? 'Matagumpay na naidagdag ang $_quantity na gamit!' : '$_quantity device(s) added successfully!'),
+             backgroundColor: Colors.green,
+           ),
         );
       }
     } catch (e) {
-      if (mounted) _showError('Error adding device: $e');
+      if (mounted) _showError(isPh ? 'May error sa pagdagdag ng gamit: $e' : 'Error adding device: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -157,7 +158,9 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
-    // Live Math Preview
+    // Watch language state for UI text
+    final isPh = ref.watch(settingsProvider).language == 'ph';
+
     double currentPreviewWattage = 0.0;
     if (_currentMode == ApplianceInputMode.preset && _selectedPreset != null) {
       currentPreviewWattage = (_selectedPreset!['preset_wattage'] as num).toDouble();
@@ -178,7 +181,10 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(icon: Icon(Icons.close, color: textColor), onPressed: () => Navigator.pop(context)),
-          title: Text('Add Appliance\n(Magdagdag ng Gamit)', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18, height: 1.2)),
+          title: Text(
+            isPh ? 'Magdagdag ng Gamit' : 'Add Appliance',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18, height: 1.2),
+          ),
         ),
         body: FutureBuilder<List<Map<String, dynamic>>>(
           future: _presetsFuture,
@@ -193,7 +199,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- 1. MODE SELECTOR ---
+                  // --- MODE SELECTOR ---
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -203,15 +209,15 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                     ),
                     child: Row(
                       children: [
-                        _buildModeTab('Preset', ApplianceInputMode.preset, textColor),
-                        _buildModeTab('Scroll', ApplianceInputMode.slider, textColor),
-                        _buildModeTab('Custom', ApplianceInputMode.free, textColor),
+                        _buildModeTab(isPh ? 'Nakatakda' : 'Preset', ApplianceInputMode.preset, textColor),
+                        _buildModeTab(isPh ? 'I-scroll' : 'Scroll', ApplianceInputMode.slider, textColor),
+                        _buildModeTab(isPh ? 'Sarili' : 'Custom', ApplianceInputMode.free, textColor),
                       ],
                     ),
                   ),
                   const SizedBox(height: 30),
 
-                  // --- 2. DYNAMIC INPUT SECTIONS ---
+                  // --- DYNAMIC INPUT SECTIONS ---
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -223,14 +229,13 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
 
-                        // Dropdown applies to both Preset and Slider mode
                         if (_currentMode != ApplianceInputMode.free) ...[
-                          _buildSectionTitle('APPLIANCE TYPE (URI NG GAMIT)'),
+                          _buildSectionTitle(isPh ? 'URI NG GAMIT' : 'APPLIANCE TYPE'),
                           const SizedBox(height: 10),
                           DropdownButtonFormField<Map<String, dynamic>>(
                             decoration: _inputDecoration(surfaceColor, hintColor, Icons.category_outlined),
                             dropdownColor: surfaceColor,
-                            hint: Text('Select from catalog...', style: TextStyle(color: hintColor, fontSize: 13)),
+                            hint: Text(isPh ? 'Pumili sa listahan...' : 'Select from catalog...', style: TextStyle(color: hintColor, fontSize: 13)),
                             value: _selectedPreset,
                             isExpanded: true,
                             items: presets.map((preset) => DropdownMenuItem<Map<String, dynamic>>(
@@ -242,9 +247,8 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                           const SizedBox(height: 25),
                         ],
 
-                        // Mode-Specific Wattage Display / Controls
                         if (_currentMode == ApplianceInputMode.preset && _selectedPreset != null) ...[
-                          _buildSectionTitle('FIXED PRESET WATTAGE'),
+                          _buildSectionTitle(isPh ? 'NAKATAKDANG WATTAGE' : 'FIXED PRESET WATTAGE'),
                           const SizedBox(height: 10),
                           Text(
                             '${_selectedPreset!['preset_wattage']} Watts',
@@ -257,7 +261,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _buildSectionTitle('ADJUST WATTAGE'),
+                              _buildSectionTitle(isPh ? 'AYUSIN ANG WATTAGE' : 'ADJUST WATTAGE'),
                               Text('${_sliderWattage.toStringAsFixed(0)} W', style: const TextStyle(color: AppColors.appYellow, fontWeight: FontWeight.bold, fontSize: 18)),
                             ],
                           ),
@@ -280,14 +284,14 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                         ],
 
                         if (_currentMode == ApplianceInputMode.free) ...[
-                          _buildSectionTitle('CUSTOM WATTAGE'),
+                          _buildSectionTitle(isPh ? 'SARILING WATTAGE' : 'CUSTOM WATTAGE'),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _customWattageController,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
                             decoration: _inputDecoration(surfaceColor, hintColor, Icons.bolt).copyWith(
-                              hintText: 'e.g., 450',
+                              hintText: isPh ? 'Halimbawa, 450' : 'e.g., 450',
                               suffixText: 'Watts',
                               suffixStyle: TextStyle(color: hintColor),
                             ),
@@ -296,17 +300,18 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                           const SizedBox(height: 25),
                         ],
 
-                        _buildSectionTitle('IDENTIFIER (PANGALAN)'),
+                        _buildSectionTitle(isPh ? 'PANGALAN NG GAMIT' : 'IDENTIFIER (NAME)'),
                         const SizedBox(height: 10),
                         TextField(
                           controller: _customNameController,
                           style: TextStyle(color: textColor, fontSize: 16),
-                          decoration: _inputDecoration(surfaceColor, hintColor, Icons.label_outline).copyWith(hintText: 'e.g., Master Bedroom AC'),
+                          decoration: _inputDecoration(surfaceColor, hintColor, Icons.label_outline).copyWith(
+                            hintText: isPh ? 'Halimbawa, AC sa Kwarto' : 'e.g., Master Bedroom AC',
+                          ),
                         ),
                         const SizedBox(height: 25),
 
-                        // --- QUANTITY CONTROLLER ---
-                        _buildSectionTitle('QUANTITY (BILANG)'),
+                        _buildSectionTitle(isPh ? 'BILANG' : 'QUANTITY'),
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -319,14 +324,14 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                         ),
                         const SizedBox(height: 25),
 
-                        _buildSectionTitle('BASELINE USAGE (ORAS KADA ARAW)'),
+                        _buildSectionTitle(isPh ? 'ORAS KADA ARAW' : 'BASELINE USAGE (HOURS/DAY)'),
                         const SizedBox(height: 10),
                         TextField(
                           controller: _hoursController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
                           decoration: _inputDecoration(surfaceColor, hintColor, Icons.schedule, iconColor: Colors.greenAccent).copyWith(
-                            hintText: 'Hours per day',
+                            hintText: isPh ? 'Oras kada araw' : 'Hours per day',
                             suffixText: 'hrs',
                             suffixStyle: TextStyle(color: hintColor),
                           ),
@@ -337,7 +342,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // --- 3. LIVE ESTIMATION PREVIEW ---
+                  // --- LIVE ESTIMATION PREVIEW ---
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(16)),
@@ -347,8 +352,13 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Estimated Consumption', style: TextStyle(color: hintColor, fontSize: 12)),
-                            Text('(${currentPreviewWattage.toStringAsFixed(0)}W × $_quantity units × ${h.toStringAsFixed(1)}h)', style: TextStyle(color: hintColor, fontSize: 10)),
+                            Text(isPh ? 'Tinatayang Konsumo' : 'Estimated Consumption', style: TextStyle(color: hintColor, fontSize: 12)),
+                            Text(
+                              isPh
+                                ? '(${currentPreviewWattage.toStringAsFixed(0)}W × $_quantity piraso × ${h.toStringAsFixed(1)}h)'
+                                : '(${currentPreviewWattage.toStringAsFixed(0)}W × $_quantity units × ${h.toStringAsFixed(1)}h)',
+                              style: TextStyle(color: hintColor, fontSize: 10)
+                            ),
                           ],
                         ),
                         Text('${dailyKwh.toStringAsFixed(2)} kWh/day', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
@@ -357,7 +367,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                   ),
                   const SizedBox(height: 30),
 
-                  // --- 4. SUBMIT ACTION ---
+                  // --- SUBMIT ACTION ---
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -371,7 +381,7 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                       ),
                       child: _isSaving
                           ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('Add to Inventory (Idagdag)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                          : Text(isPh ? 'Idagdag sa Imbentaryo' : 'Add to Inventory', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                     ),
                   ),
                 ],
