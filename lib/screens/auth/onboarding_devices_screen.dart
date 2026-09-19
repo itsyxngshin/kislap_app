@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../services/database_helper.dart';
@@ -144,23 +145,74 @@ class _OnboardingDevicesScreenState
 
   Future<void> _loadPresets() async {
     List<Map<String, dynamic>> finalData = _fallbackCatalog;
+
     try {
-      final db = await DatabaseHelper.instance.database;
-      final data = await db.query(
-        'appliance_presets',
-        orderBy: 'category, appliance_name',
-      );
-      if (data.isNotEmpty) finalData = data;
-    } catch (_) {}
+      // 1. Try pulling fresh presets from Supabase Cloud
+      final supabaseData = await Supabase.instance.client
+          .from('appliance_presets')
+          .select('*')
+          .order('category', ascending: true)
+          .order('appliance_name', ascending: true);
+
+      if (supabaseData.isNotEmpty) {
+        finalData = List<Map<String, dynamic>>.from(supabaseData);
+
+        // 2. Cache the fresh cloud data into local SQLite for offline use
+        final db = await DatabaseHelper.instance.database;
+        Batch batch = db.batch();
+        batch.delete('appliance_presets'); // Clear old cache
+
+        for (var preset in finalData) {
+          batch.insert('appliance_presets', {
+            'id': preset['id'],
+            'category': preset['category'],
+            'appliance_name': preset['appliance_name'],
+            'preset_wattage': (preset['preset_wattage'] as num).toDouble(),
+            'min_wattage':
+                preset.containsKey('min_wattage') &&
+                    preset['min_wattage'] != null
+                ? (preset['min_wattage'] as num).toDouble()
+                : (preset['preset_wattage'] as num).toDouble(),
+            'max_wattage':
+                preset.containsKey('max_wattage') &&
+                    preset['max_wattage'] != null
+                ? (preset['max_wattage'] as num).toDouble()
+                : (preset['preset_wattage'] as num).toDouble(),
+          });
+        }
+        await batch.commit(noResult: true);
+      } else {
+        throw 'Supabase catalog is empty, triggering local fallback.';
+      }
+    } catch (e) {
+      debugPrint('Cloud preset sync failed: $e');
+
+      // 3. Fallback to local SQLite if offline or cloud fetch fails
+      try {
+        final db = await DatabaseHelper.instance.database;
+        final localData = await db.query(
+          'appliance_presets',
+          orderBy: 'category, appliance_name',
+        );
+        if (localData.isNotEmpty) {
+          finalData = List<Map<String, dynamic>>.from(localData);
+        }
+      } catch (_) {}
+    }
 
     if (mounted) {
       setState(() {
         _presets = finalData;
+
+        // Extract unique categories for the horizontal tab menu
         _categories = finalData
             .map((p) => p['category'] as String)
             .toSet()
             .toList();
-        if (_categories.isNotEmpty) _selectedCategory = _categories.first;
+        if (_categories.isNotEmpty && _selectedCategory == null) {
+          _selectedCategory = _categories.first;
+        }
+
         _isLoading = false;
       });
     }
