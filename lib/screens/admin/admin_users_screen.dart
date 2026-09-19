@@ -46,7 +46,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
       // --- THE FIX: Universal UUID Harvesting ---
       Map<String, List<dynamic>> inventories = {};
-      Set<String> allUniqueUserIds = {}; 
+      Set<String> allUniqueUserIds = {};
 
       // Harvest from Appliances
       for (var item in allInventory) {
@@ -70,14 +70,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       for (var p in profilesResponse) {
         final String uid = p['id'].toString(); // Strict cast
         profilesMap[uid] = p;
-        allUniqueUserIds.add(uid); 
+        allUniqueUserIds.add(uid);
       }
 
       // Build the final unified list of users
       List<Map<String, dynamic>> unifiedUsers = [];
       for (String uid in allUniqueUserIds) {
         final profile = profilesMap[uid];
-        
+
         // Hide other Admin accounts from the user oversight list if desired
         if (profile != null && profile['role_id'] == 2) continue;
 
@@ -101,7 +101,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error loading users: $e'), 
+          content: Text('Error loading users: $e'),
           backgroundColor: AppColors.adminRed
         ));
         setState(() => _isLoading = false);
@@ -142,7 +142,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         color: surfaceColor.withOpacity(0.5),
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16), 
+                          borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: textColor.withOpacity(0.1))
                         ),
                         child: ExpansionTile(
@@ -177,7 +177,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         ],
                                       ),
                                     )),
-                                  
+
                                   const SizedBox(height: 20),
 
                                   // --- APPLIANCE INVENTORY ---

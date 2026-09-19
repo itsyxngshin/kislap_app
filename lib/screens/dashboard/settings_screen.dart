@@ -10,7 +10,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'analysis_screen.dart';
-import '../admin/admin_dashboard_shell.dart'; // <-- Required for Admin routing
+import '../admin/admin_dashboard_shell.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -28,7 +28,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isAdmin = false; // <-- Admin state variable
+  bool _isAdmin = false;
 
   List<Map<String, dynamic>> _periods = [];
   final List<String> _monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -39,7 +39,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _loadInitialData();
-    _checkAdminStatus(); // <-- Trigger role verification
+    _checkAdminStatus();
   }
 
   @override
@@ -54,7 +54,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return isPh ? '${_monthsPh[now.month - 1]} ${now.year}' : '${_monthsEn[now.month - 1]} ${now.year}';
   }
 
-  // --- Secure Admin Verification ---
   Future<void> _checkAdminStatus() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
@@ -98,18 +97,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _householdSize = data['household_size'] as String? ?? 'Small';
       }
 
-      final periodData = await db.query('recording_periods', orderBy: 'period_month DESC');
-      if (mounted) _periods = periodData;
+      await _loadPeriods(); // This now handles both Cloud Sync and Local Load
     } catch (_) {}
+
     if (mounted) setState(() => _isLoading = false);
   }
 
+  // --- REVISED: Cloud Pull to ensure devices stay synced ---
   Future<void> _loadPeriods() async {
     try {
       final db = await DatabaseHelper.instance.database;
+      final user = Supabase.instance.client.auth.currentUser;
+
+      // 1. Pull latest periods from Supabase and mirror to SQLite
+      if (user != null) {
+        final cloudPeriods = await Supabase.instance.client
+            .from('recording_periods')
+            .select()
+            .eq('user_id', user.id);
+
+        Batch batch = db.batch();
+        for (var p in cloudPeriods) {
+          batch.insert(
+            'recording_periods',
+            {
+              'period_month': p['period_month'],
+              'period_name': p['period_name'],
+              'start_date': p['start_date'],
+              'end_date': p['end_date'],
+              'billing_rate': p['billing_rate'],
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+
+      // 2. Load the unified list into the UI
       final data = await db.query('recording_periods', orderBy: 'period_month DESC');
       if (mounted) setState(() => _periods = data);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error syncing periods: $e');
+    }
   }
 
   Future<void> _saveConfiguration() async {
@@ -215,6 +244,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
+                      // --- REVISED: Cloud Push implementation ---
                       onPressed: () async {
                         final rate = double.tryParse(rateController.text);
                         if (rate == null || rate <= 0) return;
@@ -225,19 +255,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         int lastDay = DateTime(selectedYear, monthIndex + 1, 0).day;
 
                         try {
+                          // 1. Save Locally
                           final db = await DatabaseHelper.instance.database;
-                          await db.insert('recording_periods', {
-                            'period_month': periodMonth,
-                            'period_name': '$selectedMonth $selectedYear',
-                            'start_date': periodMonth,
-                            'end_date': '$selectedYear-$paddedMonth-$lastDay',
-                            'billing_rate': rate,
-                          });
+                          await db.insert(
+                            'recording_periods',
+                            {
+                              'period_month': periodMonth,
+                              'period_name': '$selectedMonth $selectedYear',
+                              'start_date': periodMonth,
+                              'end_date': '$selectedYear-$paddedMonth-$lastDay',
+                              'billing_rate': rate,
+                            },
+                            conflictAlgorithm: ConflictAlgorithm.replace,
+                          );
+
+                          // 2. Save to Supabase Cloud
+                          final user = Supabase.instance.client.auth.currentUser;
+                          if (user != null) {
+                            await Supabase.instance.client.from('recording_periods').upsert({
+                              'user_id': user.id,
+                              'period_month': periodMonth,
+                              'period_name': '$selectedMonth $selectedYear',
+                              'start_date': periodMonth,
+                              'end_date': '$selectedYear-$paddedMonth-$lastDay',
+                              'billing_rate': rate,
+                            });
+                          }
+
                           if (mounted) {
                             Navigator.pop(context);
                             _loadPeriods();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(isPh ? 'Nai-save na sa cloud!' : 'Synced to Cloud!'), backgroundColor: Colors.green)
+                            );
                           }
-                        } catch (e) {}
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed)
+                            );
+                          }
+                        }
                       },
                       style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       child: Text(isPh ? 'I-save' : 'Save Period', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -446,7 +504,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 Text(isPh ? 'Naitalang halaga' : 'Rate recorded', style: TextStyle(color: hintColor, fontSize: 11)),
                               ],
                             ),
-                            Text('₱${period['billing_rate'].toStringAsFixed(2)}', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text('₱${(period['billing_rate'] as num).toStringAsFixed(2)}', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       );
