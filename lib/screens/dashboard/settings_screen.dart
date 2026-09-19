@@ -172,11 +172,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      setState(() => _isLoading = true);
+
+      try {
+        // 1. WIPE LOCAL DATA to prevent data bleed into the next account
+        final db = await DatabaseHelper.instance.database;
+        await db.execute('DELETE FROM user_appliances');
+        await db.execute('DELETE FROM recording_periods');
+
+        // 2. Reset the local financial baseline to defaults
+        await db.update(
+          'user_settings',
+          {
+            'monthly_budget': 0.0,
+            'tariff_rate': 12.35,
+            'household_size': 'Small'
+          },
+          where: 'id = ?',
+          whereArgs: [1],
+        );
+
+      } catch (e) {
+        debugPrint('Error wiping local data on logout: $e');
+      }
+
+      // 3. Destroy the Supabase Cloud Session
+      await Supabase.instance.client.auth.signOut();
+
+      // 4. Route back to Sign In
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const SignInScreen()),
+          (route) => false
+        );
+      }
     }
-  }
 
   void _showAddPeriodModal(bool isPh) {
     String selectedMonth = isPh ? _monthsPh[DateTime.now().month - 1] : _monthsEn[DateTime.now().month - 1];

@@ -1,86 +1,82 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_helper.dart';
+import '../models/appliance.dart';
 
-class Appliance {
-  final String id;
-  final int presetId;
-  final String customName;
-  final double presetWattage;
-  final int quantity;
-  final double userAssignedHours;
-  final double adjustedHours;
-  final bool isLocked;
+export '../models/appliance.dart';
 
-  Appliance({
-    required this.id,
-    required this.presetId,
-    required this.customName,
-    required this.presetWattage,
-    required this.quantity,
-    required this.userAssignedHours,
-    required this.adjustedHours,
-    required this.isLocked,
-  });
-
-  // FIX: Updated copyWith to accept the new editable parameters
-  Appliance copyWith({
-    String? customName,
-    int? quantity,
-    double? userAssignedHours,
-    double? adjustedHours,
-    bool? isLocked,
-  }) {
-    return Appliance(
-      id: id,
-      presetId: presetId,
-      customName: customName ?? this.customName,
-      presetWattage: presetWattage,
-      quantity: quantity ?? this.quantity,
-      userAssignedHours: userAssignedHours ?? this.userAssignedHours,
-      adjustedHours: adjustedHours ?? this.adjustedHours,
-      isLocked: isLocked ?? this.isLocked,
-    );
-  }
-}
-
-// UPGRADED: Using the modern Riverpod 2.x Notifier class
 class InventoryNotifier extends Notifier<List<Appliance>> {
   @override
   List<Appliance> build() {
-    // The build method replaces the old constructor initialization
     Future.microtask(() => _loadInventory());
     return [];
   }
 
-  // --- 1. THE FIX: ACTUALLY LOAD FROM SQLITE ---
+  /// Loads appliances: checks Supabase first if authenticated; otherwise falls back to SQLite.
   Future<void> _loadInventory() async {
     final db = await DatabaseHelper.instance.database;
+    final user = Supabase.instance.client.auth.currentUser;
 
-    // Fetch all saved appliances from the database
-    final data = await db.query('user_appliances');
+    List<Appliance> loaded = [];
 
-    // Convert the raw SQLite map into your Appliance objects
-    final loadedAppliances = data.map((row) {
-      return Appliance(
-        id: row['id'] as String,
-        presetId: row['preset_id'] as int,
-        customName: row['custom_name'] as String,
-        presetWattage: (row['preset_wattage'] as num).toDouble(),
-        quantity:
-            row['quantity'] as int? ??
-            1, // <-- NEW: Safely parse quantity with a fallback
-        userAssignedHours: (row['user_assigned_hours'] as num).toDouble(),
-        adjustedHours: (row['adjusted_hours'] as num).toDouble(),
-        isLocked:
-            (row['is_locked'] as int) == 1, // SQLite stores booleans as 0 or 1
-      );
-    }).toList();
+    if (user != null) {
+      try {
+        final cloudData = await Supabase.instance.client
+            .from('appliances')
+            .select()
+            .eq('user_id', user.id);
 
-    // Run the optimization on the loaded appliances in case the user
-    // changed their budget/tariff while the app was closed!
-    await _optimizeAndSave(loadedAppliances);
+        if (cloudData.isNotEmpty) {
+          loaded = cloudData.map((row) {
+            final double hours = (row['hours_per_day'] as num?)?.toDouble() ?? 0.0;
+            return Appliance(
+              id: row['id'].toString(),
+              presetId: 9999,
+              customName: row['name'] as String? ?? 'Appliance',
+              category: row['category'] as String? ?? 'General',
+              presetWattage: (row['watts'] as num?)?.toDouble() ?? 0.0,
+              quantity: (row['quantity'] as int?) ?? 1,
+              userAssignedHours: hours,
+              adjustedHours: hours,
+              isLocked: false,
+            );
+          }).toList();
+
+          // Mirror cloud records into local SQLite
+          Batch batch = db.batch();
+          batch.delete('user_appliances');
+          for (var item in loaded) {
+            batch.insert('user_appliances', item.toSqliteMap());
+          }
+          await batch.commit(noResult: true);
+        }
+      } catch (e) {
+        debugPrint('Cloud pull failed, falling back to local storage: $e');
+      }
+    }
+
+    // Fall back to SQLite if cloud was empty or unavailable
+    if (loaded.isEmpty) {
+      final localData = await db.query('user_appliances');
+      loaded = localData.map((row) {
+        return Appliance(
+          id: row['id'] as String,
+          presetId: row['preset_id'] as int,
+          customName: row['custom_name'] as String,
+          category: 'General',
+          presetWattage: (row['preset_wattage'] as num).toDouble(),
+          quantity: row['quantity'] as int? ?? 1,
+          userAssignedHours: (row['user_assigned_hours'] as num).toDouble(),
+          adjustedHours: (row['adjusted_hours'] as num).toDouble(),
+          isLocked: (row['is_locked'] as int) == 1,
+        );
+      }).toList();
+    }
+
+    await _optimizeAndSave(loaded, syncCloud: false);
   }
 
   Future<void> addAppliance({
@@ -88,14 +84,16 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     required String customName,
     required double defaultHours,
     required double wattage,
-    required int quantity, // <-- NEW: Accept quantity from UI
+    required int quantity,
+    String category = 'General',
   }) async {
     final newItem = Appliance(
       id: const Uuid().v4(),
       presetId: presetId,
       customName: customName,
+      category: category,
       presetWattage: wattage,
-      quantity: quantity, // <-- NEW: Pass to model
+      quantity: quantity,
       userAssignedHours: defaultHours,
       adjustedHours: defaultHours,
       isLocked: false,
@@ -103,33 +101,77 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
     final newState = [...state, newItem];
     await _optimizeAndSave(newState);
+
+    // Push new item to Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        await Supabase.instance.client.from('appliances').insert(
+          newItem.toSupabaseMap(user.id),
+        );
+      } catch (e) {
+        debugPrint('Cloud insert error: $e');
+      }
+    }
   }
 
   Future<void> editAppliance({
-      required String id,
-      required String customName,
-      required int quantity,
-      required double userAssignedHours,
-    }) async {
-      // FIX: Added <Appliance> to strictly enforce the list type
-      final newState = state.map<Appliance>((item) {
-        if (item.id == id) {
-          return item.copyWith(
-            customName: customName,
-            quantity: quantity,
-            userAssignedHours: userAssignedHours,
-            adjustedHours: userAssignedHours,
-          );
-        }
-        return item;
-      }).toList();
+    required String id,
+    required String customName,
+    required int quantity,
+    required double userAssignedHours,
+    String? category,
+  }) async {
+    Appliance? updatedItem;
 
-      await _optimizeAndSave(newState);
+    final newState = state.map<Appliance>((item) {
+      if (item.id == id) {
+        updatedItem = item.copyWith(
+          customName: customName,
+          category: category ?? item.category,
+          quantity: quantity,
+          userAssignedHours: userAssignedHours,
+          adjustedHours: userAssignedHours,
+        );
+        return updatedItem!;
+      }
+      return item;
+    }).toList();
+
+    await _optimizeAndSave(newState);
+
+    // Push update to Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null && updatedItem != null) {
+      try {
+        await Supabase.instance.client
+            .from('appliances')
+            .update(updatedItem!.toSupabaseMap(user.id))
+            .eq('id', id)
+            .eq('user_id', user.id);
+      } catch (e) {
+        debugPrint('Cloud update error: $e');
+      }
     }
+  }
 
   Future<void> removeAppliance(String id) async {
     final newState = state.where((item) => item.id != id).toList();
     await _optimizeAndSave(newState);
+
+    // Delete item from Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        await Supabase.instance.client
+            .from('appliances')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+      } catch (e) {
+        debugPrint('Cloud delete error: $e');
+      }
+    }
   }
 
   Future<void> toggleLock(String id, bool currentLockState) async {
@@ -139,17 +181,17 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       }
       return item;
     }).toList();
+
     await _optimizeAndSave(newState);
   }
 
-  // --- THE PROPORTIONAL REDUCTION ALGORITHM ---
-  // --- THE OFFICIAL BUDGET OPTIMIZATION ENGINE ---
-  Future<void> _optimizeAndSave(List<Appliance> currentState) async {
+  /// Calculates proportional reduction and mirrors current state to local SQLite.
+  Future<void> _optimizeAndSave(List<Appliance> currentState, {bool syncCloud = true}) async {
     final db = await DatabaseHelper.instance.database;
     final settings = await db.query('user_settings', limit: 1);
 
     double budget = 0.0;
-    double tariff = 12.35; // Aligned with ALECO June 2026 Mainland Rate
+    double tariff = 12.35;
 
     if (settings.isNotEmpty) {
       budget = (settings.first['monthly_budget'] as num).toDouble();
@@ -158,50 +200,33 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
     List<Appliance> optimizedState = currentState;
 
-    // Only run the math if there is a budget set
     if (budget > 0) {
-      // Step 1: Calculate the Monthly Energy Allowance
       final double energyAllowanceKwh = budget / tariff;
 
-      // Step 2: Calculate the Total Energy Consumption of Locked Appliances
       double lockedMonthlyKwh = 0.0;
       for (var item in currentState) {
         if (item.isLocked) {
-          // NEW: Multiply by item.quantity instead of hardcoded 1
           lockedMonthlyKwh +=
-              (item.presetWattage *
-                  item.quantity *
-                  item.userAssignedHours *
-                  30) /
-              1000;
+              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
         }
       }
 
-      // Step 3: Determine the Remaining Energy Allowance
       double remainingEnergy = energyAllowanceKwh - lockedMonthlyKwh;
       if (remainingEnergy < 0) remainingEnergy = 0;
 
-      // Step 4: Calculate the Total Energy Consumption of Unlocked Appliances
       double unlockedMonthlyKwh = 0.0;
       for (var item in currentState) {
         if (!item.isLocked) {
-          // NEW: Multiply by item.quantity instead of hardcoded 1
           unlockedMonthlyKwh +=
-              (item.presetWattage *
-                  item.quantity *
-                  item.userAssignedHours *
-                  30) /
-              1000;
+              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
         }
       }
 
-      // Step 5: Determine the Recommended Operating Hours
       double reductionFactor = 1.0;
       if (unlockedMonthlyKwh > remainingEnergy && unlockedMonthlyKwh > 0) {
         reductionFactor = remainingEnergy / unlockedMonthlyKwh;
       }
 
-      // Apply Reduction Factor
       optimizedState = currentState.map((item) {
         if (item.isLocked) {
           return item.copyWith(adjustedHours: item.userAssignedHours);
@@ -213,35 +238,34 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       }).toList();
     }
 
-    // Update the UI State instantly
     state = optimizedState;
 
-    // --- 2. THE FIX: ACTUALLY SAVE TO SQLITE ---
-    // We use a database "batch" to safely clear the old inventory and save the new one
-    // simultaneously, preventing corrupted data.
+    // Update SQLite cache
     Batch batch = db.batch();
     batch.delete('user_appliances');
-
     for (var item in optimizedState) {
-      batch.insert('user_appliances', {
-        'id': item.id,
-        'preset_id': item.presetId,
-        'custom_name': item.customName,
-        'preset_wattage': item.presetWattage,
-        'quantity': item.quantity, // <-- NEW: Save quantity to DB
-        'user_assigned_hours': item.userAssignedHours,
-        'adjusted_hours': item.adjustedHours,
-        'is_locked': item.isLocked ? 1 : 0, // SQLite needs 1/0 for booleans
-      });
+      batch.insert('user_appliances', item.toSqliteMap());
     }
+    await batch.commit(noResult: true);
 
-    await batch.commit();
+    // Sync adjusted operating hours back to Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+    if (syncCloud && user != null) {
+      try {
+        for (var item in optimizedState) {
+          await Supabase.instance.client
+              .from('appliances')
+              .update({'hours_per_day': item.adjustedHours})
+              .eq('id', item.id)
+              .eq('user_id', user.id);
+        }
+      } catch (e) {
+        debugPrint('Cloud batch hour adjustment error: $e');
+      }
+    }
   }
 }
 
-// UPGRADED: Modern Provider Syntax
 final inventoryProvider = NotifierProvider<InventoryNotifier, List<Appliance>>(
-  () {
-    return InventoryNotifier();
-  },
+  () => InventoryNotifier(),
 );
