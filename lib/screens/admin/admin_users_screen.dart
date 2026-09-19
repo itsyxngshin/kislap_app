@@ -27,42 +27,72 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. Fetch standard users from the public profiles table
-      final profiles = await supabase
+      // 1. Fetch profiles (for display names)
+      final profilesResponse = await supabase
           .from('profiles')
           .select('id, full_name, created_at')
-          .eq('role_id', 1)
           .order('created_at', ascending: false);
 
-      // 2. Fetch all cloud inventory from the 'appliances' table
+      // 2. Fetch ALL inventory from the appliances table
       final allInventory = await supabase
           .from('appliances')
           .select('user_id, name, watts, hours_per_day, quantity');
 
-      // 3. Fetch all recorded billing periods
+      // 3. Fetch ALL recorded billing periods
       final allPeriods = await supabase
           .from('recording_periods')
           .select('user_id, period_name, billing_rate')
           .order('start_date', ascending: false);
 
-      // Grouping data in Dart to avoid N+1 query bottlenecks
+      // --- THE FIX: Universal UUID Harvesting ---
       Map<String, List<dynamic>> inventories = {};
+      Set<String> allUniqueUserIds = {}; 
+
+      // Harvest from Appliances
       for (var item in allInventory) {
-        final uid = item['user_id'];
+        final String uid = item['user_id'].toString(); // Strict cast
+        allUniqueUserIds.add(uid);
         if (!inventories.containsKey(uid)) inventories[uid] = [];
         inventories[uid]!.add(item);
       }
 
+      // Harvest from Billing Periods
       Map<String, List<dynamic>> periods = {};
       for (var item in allPeriods) {
-        final uid = item['user_id'];
+        final String uid = item['user_id'].toString(); // Strict cast
+        allUniqueUserIds.add(uid);
         if (!periods.containsKey(uid)) periods[uid] = [];
         periods[uid]!.add(item);
       }
 
+      // Harvest from Profiles
+      Map<String, Map<String, dynamic>> profilesMap = {};
+      for (var p in profilesResponse) {
+        final String uid = p['id'].toString(); // Strict cast
+        profilesMap[uid] = p;
+        allUniqueUserIds.add(uid); 
+      }
+
+      // Build the final unified list of users
+      List<Map<String, dynamic>> unifiedUsers = [];
+      for (String uid in allUniqueUserIds) {
+        final profile = profilesMap[uid];
+        
+        // Hide other Admin accounts from the user oversight list if desired
+        if (profile != null && profile['role_id'] == 2) continue;
+
+        unifiedUsers.add({
+          'id': uid,
+          'full_name': profile != null ? profile['full_name'] : 'Unknown User (No Profile)',
+        });
+      }
+
+      // Alphabetical sorting for easy oversight
+      unifiedUsers.sort((a, b) => (a['full_name'] ?? '').compareTo(b['full_name'] ?? ''));
+
       if (mounted) {
         setState(() {
-          _users = List<Map<String, dynamic>>.from(profiles);
+          _users = unifiedUsers;
           _userInventories = inventories;
           _userPeriods = periods;
           _isLoading = false;
@@ -71,7 +101,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error loading users: $e'),
+          content: Text('Error loading users: $e'), 
           backgroundColor: AppColors.adminRed
         ));
         setState(() => _isLoading = false);
@@ -98,13 +128,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         body: _isLoading
             ? const Center(child: CircularProgressIndicator(color: AppColors.adminRed))
             : _users.isEmpty
-                ? Center(child: Text('No users found.', style: TextStyle(color: hintColor)))
+                ? Center(child: Text('No user data found in the system.', style: TextStyle(color: hintColor)))
                 : ListView.builder(
                     padding: const EdgeInsets.all(20),
                     itemCount: _users.length,
                     itemBuilder: (context, index) {
                       final user = _users[index];
-                      final uid = user['id'];
+                      final String uid = user['id']; // Now guaranteed to be a string
                       final items = _userInventories[uid] ?? [];
                       final periods = _userPeriods[uid] ?? [];
 
@@ -112,13 +142,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         color: surfaceColor.withOpacity(0.5),
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(16), 
                           side: BorderSide(color: textColor.withOpacity(0.1))
                         ),
                         child: ExpansionTile(
                           iconColor: AppColors.adminRed,
                           collapsedIconColor: hintColor,
-                          title: Text(user['full_name'] ?? 'Unknown User', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                          title: Text(user['full_name'], style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
                           subtitle: Text('Appliances: ${items.length} | Logs: ${periods.length}', style: TextStyle(color: hintColor, fontSize: 13)),
                           children: [
                             Container(
@@ -147,7 +177,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         ],
                                       ),
                                     )),
-
+                                  
                                   const SizedBox(height: 20),
 
                                   // --- APPLIANCE INVENTORY ---
