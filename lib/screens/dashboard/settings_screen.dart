@@ -9,7 +9,8 @@ import '../../services/database_helper.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
-import 'analysis_screen.dart'; // <-- Required for the deep link to work
+import 'analysis_screen.dart';
+import '../admin/admin_dashboard_shell.dart'; // <-- Required for Admin routing
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -24,8 +25,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _householdSize = 'Small';
   String _fullName = 'Loading...';
   String _email = '';
+
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isAdmin = false; // <-- Admin state variable
 
   List<Map<String, dynamic>> _periods = [];
   final List<String> _monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -36,6 +39,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _loadInitialData();
+    _checkAdminStatus(); // <-- Trigger role verification
   }
 
   @override
@@ -48,6 +52,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _getCurrentBillingMonth(bool isPh) {
     final now = DateTime.now();
     return isPh ? '${_monthsPh[now.month - 1]} ${now.year}' : '${_monthsEn[now.month - 1]} ${now.year}';
+  }
+
+  // --- Secure Admin Verification ---
+  Future<void> _checkAdminStatus() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select('role_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (mounted && data != null && data['role_id'] == 2) {
+        setState(() => _isAdmin = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadInitialData() async {
@@ -470,7 +492,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // NEW: System Transparency & ISO 25010 Verification
                 Text(isPh ? 'SISTEMA AT TRANSPARENCY' : 'SYSTEM TRANSPARENCY', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
                 Container(
@@ -481,14 +502,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: Text(isPh ? 'I-verify ang math, optimization engine, at graphs.' : 'Verify the math, optimization engine, and graphs.', style: TextStyle(color: hintColor, fontSize: 12)),
                     trailing: Icon(Icons.arrow_forward_ios, color: hintColor, size: 16),
                     onTap: () {
-                      // Deep links the user straight to the Analysis Hub
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
                     },
                   ),
                 ),
                 const SizedBox(height: 40),
 
-                // 7. Account Actions
+                // --- 7. ADMIN CONTEXT SWITCHER ---
+                if (_isAdmin) ...[
+                  Text(isPh ? 'ADMINISTRASYON' : 'ADMINISTRATION', style: const TextStyle(color: AppColors.adminRed, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AdminDashboardShell()),
+                          (route) => false
+                        );
+                      },
+                      icon: const Icon(Icons.admin_panel_settings),
+                      label: Text(isPh ? 'Bumalik sa Admin Panel' : 'Switch to Admin Panel', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.adminRed.withOpacity(0.1),
+                        foregroundColor: AppColors.adminRed,
+                        side: BorderSide(color: AppColors.adminRed.withOpacity(0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+
+                // 8. Account Actions
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
