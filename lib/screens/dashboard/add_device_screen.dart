@@ -447,101 +447,46 @@ class _AddDeviceScreenState extends ConsumerState<AddDeviceScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (_currentMode != ApplianceInputMode.free) ...[
-                        _buildSectionTitle(
-                          isPh ? '1. KATEGORYA' : '1. CATEGORY',
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 38,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _categories.length,
-                            itemBuilder: (context, index) {
-                              final cat = _categories[index];
-                              final isSelected = _selectedCategory == cat;
-                              return GestureDetector(
-                                onTap: () => setState(() {
-                                  _selectedCategory = cat;
-                                  _selectedPreset = null;
-                                  _customNameController.clear();
-                                }),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  margin: const EdgeInsets.only(right: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? AppColors.appYellow
-                                        : surfaceColor,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? AppColors.appYellow
-                                          : hintColor.withOpacity(0.2),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    cat,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.black87
-                                          : textColor,
-                                      fontWeight: isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 25),
+                    if (_currentMode != ApplianceInputMode.free) ...[
+                                                  _buildSectionTitle(isPh ? '1. KATEGORYA' : '1. CATEGORY'),
+                                                  const SizedBox(height: 10),
+                                                  // THE FIX: Replaced horizontal chips with a clean Dropdown
+                                                  DropdownButtonFormField<String>(
+                                                    decoration: _inputDecoration(surfaceColor, hintColor, Icons.grid_view),
+                                                    dropdownColor: surfaceColor,
+                                                    hint: Text(isPh ? 'Pumili ng kategorya...' : 'Select a category...', style: TextStyle(color: hintColor, fontSize: 13)),
+                                                    value: _selectedCategory,
+                                                    isExpanded: true,
+                                                    items: _categories.map((cat) => DropdownMenuItem<String>(
+                                                      value: cat,
+                                                      child: Text(cat, style: TextStyle(color: textColor, fontSize: 14), overflow: TextOverflow.ellipsis),
+                                                    )).toList(),
+                                                    onChanged: (val) {
+                                                      setState(() {
+                                                        _selectedCategory = val;
+                                                        _selectedPreset = null; // Reset appliance when category changes
+                                                        _customNameController.clear();
+                                                      });
+                                                    },
+                                                  ),
+                                                  const SizedBox(height: 25),
 
-                        _buildSectionTitle(
-                          isPh ? '2. URI NG GAMIT' : '2. APPLIANCE TYPE',
-                        ),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<Map<String, dynamic>>(
-                          decoration: _inputDecoration(
-                            surfaceColor,
-                            hintColor,
-                            Icons.category_outlined,
-                          ),
-                          dropdownColor: surfaceColor,
-                          hint: Text(
-                            isPh
-                                ? 'Pumili sa listahan...'
-                                : 'Select from catalog...',
-                            style: TextStyle(color: hintColor, fontSize: 13),
-                          ),
-                          value: _selectedPreset,
-                          isExpanded: true,
-                          items: filteredPresets
-                              .map(
-                                (
-                                  preset,
-                                ) => DropdownMenuItem<Map<String, dynamic>>(
-                                  value: preset,
-                                  child: Text(
-                                    '${preset['appliance_name']} (${preset['preset_wattage']}W)',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: _onPresetSelected,
-                        ),
-                        const SizedBox(height: 25),
-                      ],
+                                                  _buildSectionTitle(isPh ? '2. URI NG GAMIT' : '2. APPLIANCE TYPE'),
+                                                  const SizedBox(height: 10),
+                                                  DropdownButtonFormField<Map<String, dynamic>>(
+                                                    decoration: _inputDecoration(surfaceColor, hintColor, Icons.category_outlined),
+                                                    dropdownColor: surfaceColor,
+                                                    hint: Text(isPh ? 'Pumili sa listahan...' : 'Select from catalog...', style: TextStyle(color: hintColor, fontSize: 13)),
+                                                    value: _selectedPreset,
+                                                    isExpanded: true,
+                                                    items: filteredPresets.map((preset) => DropdownMenuItem<Map<String, dynamic>>(
+                                                      value: preset,
+                                                      child: Text('${preset['appliance_name']} (${preset['preset_wattage']}W)', style: TextStyle(color: textColor, fontSize: 14))
+                                                    )).toList(),
+                                                    onChanged: _onPresetSelected,
+                                                  ),
+                                                  const SizedBox(height: 25),
+                                                ],
 
                       if (_currentMode == ApplianceInputMode.preset &&
                           _selectedPreset != null) ...[
