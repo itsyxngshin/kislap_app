@@ -470,3 +470,4 @@ class _OnboardingDevicesScreenState extends ConsumerState<OnboardingDevicesScree
     return InputDecoration(filled: true, fillColor: surfaceColor.withOpacity(0.8), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), prefixIcon: Icon(icon, color: iconColor ?? hintColor), hintStyle: TextStyle(color: hintColor, fontSize: 14));
   }
 }
+   

@@ -24,20 +24,26 @@ class AdminManualScreen extends StatelessWidget {
 
             _buildManualSection(
               context,
-              '1. Preset Management',
-              'The Presets tab allows you to globally Add, Edit, and Delete appliance baselines. Changes made here will immediately sync to all users worldwide upon their next login. Ensure wattage figures are based on verified Philippine audits (e.g., DOE or Meralco benchmarks).'
+              '1. Preset Management (Catalog)',
+              'The Presets tab allows you to globally Add, Edit, and Delete appliance baselines. When setting wattages, you must provide a Base Wattage, a Min Wattage, and a Max Wattage. This dictates the slider limits users see when adding appliances.'
             ),
 
             _buildManualSection(
               context,
-              '2. Adding New Categories',
-              'When adding a new preset, assign it to a logical category (e.g., "Cooling", "Kitchen"). This keeps the user dropdown menus organized and easy to navigate.'
+              '2. Rate Management',
+              'On the Oversight tab, you can input the monthly electricity rates (₱/kWh) for both Mainland and Island grids. Always ensure you are saving the rates for the correct Billing Month using the dropdown calendar.'
             ),
 
             _buildManualSection(
               context,
-              '3. Cloud Synchronization',
-              'Presets are securely stored in Supabase. You must have an active internet connection to publish updates. If an error occurs during saving, check your network or contact the database administrator.'
+              '3. System-Wide Kill Switch',
+              'The Maintenance Mode toggle acts as a kill switch. Activating it instantly locks out all standard users from the application. Use this only during critical database migrations or emergencies. You can provide a custom message explaining the downtime.'
+            ),
+
+            _buildManualSection(
+              context,
+              '4. Cloud Synchronization',
+              'Presets and settings are securely stored in Supabase. You must have an active internet connection to publish updates. Changes made in the Admin Panel immediately affect all active users worldwide.'
             ),
           ],
         ),
