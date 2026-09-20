@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
@@ -15,9 +16,11 @@ class AppTheme {
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Color(0xFF0F172A)), // Standardized back buttons
+        iconTheme: IconThemeData(
+          color: Color(0xFF0F172A),
+        ), // Standardized back buttons
       ),
-      fontFamily: 'Inter',
+      textTheme: GoogleFonts.spaceGroteskTextTheme(ThemeData.light().textTheme),
     );
   }
 
@@ -36,15 +39,13 @@ class AppTheme {
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
-      fontFamily: 'Inter',
+      textTheme: GoogleFonts.spaceGroteskTextTheme(ThemeData.dark().textTheme),
     );
   }
 
   // FIX: This missing method is restored so Auth/Onboarding screens don't crash
   // It now returns your clean, standardized solid background color.
   static BoxDecoration globalBackground(BuildContext context) {
-    return BoxDecoration(
-      color: Theme.of(context).scaffoldBackgroundColor,
-    );
+    return BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor);
   }
 }
