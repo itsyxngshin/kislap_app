@@ -10,6 +10,9 @@ import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
 
+// NEW: Import the Admin Shell
+import '../admin/admin_dashboard_shell.dart';
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -23,6 +26,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _householdSize = 'Small';
   String _fullName = 'Loading...';
   String _email = '';
+  String _role = 'user'; // NEW: Track the user role
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -59,13 +63,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } else {
       _email = user.email ?? '';
       try {
+        // NEW: Included 'role' in the Supabase query
         final profileData = await Supabase.instance.client
             .from('profiles')
-            .select('full_name, monthly_budget, tariff_rate, household_size')
+            .select('full_name, monthly_budget, tariff_rate, household_size, role')
             .eq('id', user.id)
             .maybeSingle();
 
         _fullName = profileData?['full_name'] ?? 'User';
+        _role = profileData?['role'] ?? 'user'; // Assign role
 
         if (profileData != null && profileData['monthly_budget'] != null) {
            await db.update('user_settings', {
@@ -603,7 +609,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // 7. Account Actions
+                // 7. ADMINISTRATION (Conditional)
+                if (_role == 'admin') ...[
+                  Text(isPh ? 'ADMINISTRASYON' : 'ADMINISTRATION', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardShell())),
+                      icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+                      label: Text(isPh ? 'Pumunta sa Admin Panel' : 'Switch to Admin Panel', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.adminRed,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                ],
+
+                // 8. Account Actions
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
