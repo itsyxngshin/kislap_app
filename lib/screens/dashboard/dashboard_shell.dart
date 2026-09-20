@@ -2,11 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:sqflite/sqflite.dart'; // <-- Required for ConflictAlgorithm
+import 'package:sqflite/sqflite.dart';
 import '../../theme/app_colors.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/navigation_provider.dart';
-import '../../providers/inventory_provider.dart'; // <-- Added to refresh state
+import '../../providers/inventory_provider.dart';
 import '../../services/database_helper.dart';
 import '../auth/lockdown_screen.dart';
 import '../auth/tutorial_screen.dart';
@@ -345,82 +345,54 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
               onPressed: () async {
                 final rate = double.tryParse(rateController.text);
                 if (rate != null && rate > 0) {
-                  // THE FIX: Wrap everything in a strict Try/Catch block
                   try {
                     final db = await DatabaseHelper.instance.database;
                     int lastDay = DateTime(prevYear, prevMonth + 1, 0).day;
                     final String endDate = '$prevYear-$paddedMonth-$lastDay';
                     final String periodName = '$monthName $prevYear';
 
-                    // 1. Safe Upsert to Local SQLite to prevent crash loops
-                    final existingLocal = await db.query(
+                    // 1. Safe Upsert to Local SQLite
+                    await db.insert(
                       'recording_periods',
-                      where: 'period_month = ?',
-                      whereArgs: [targetPeriod],
+                      {
+                        'period_month': targetPeriod,
+                        'period_name': periodName,
+                        'start_date': targetPeriod,
+                        'end_date': endDate,
+                        'billing_rate': rate,
+                      },
+                      conflictAlgorithm: ConflictAlgorithm.replace,
                     );
-                    if (existingLocal.isNotEmpty) {
-                      await db.update(
-                        'recording_periods',
-                        {'billing_rate': rate},
-                        where: 'period_month = ?',
-                        whereArgs: [targetPeriod],
-                      );
-                    } else {
-                      await db.insert(
-                        'recording_periods',
-                        {
-                          'period_month': targetPeriod,
-                          'period_name': periodName,
-                          'start_date': targetPeriod,
-                          'end_date': endDate,
-                          'billing_rate': rate,
-                        },
-                        conflictAlgorithm: ConflictAlgorithm.replace,
-                      ); // Ensures it bypasses constraint crashes
-                    }
 
-                    // 2. Update local current active tariff rate
                     await db.update('user_settings', {
                       'tariff_rate': rate,
                     }, where: 'id = 1');
 
-                    // 3. Push everything to Supabase Cloud
+                    // 2. Clean Upsert to Supabase Cloud leveraging the composite constraint
                     final user = Supabase.instance.client.auth.currentUser;
                     if (user != null) {
-                      // Sync profile tariff rate
                       await Supabase.instance.client
                           .from('profiles')
                           .update({'tariff_rate': rate})
                           .eq('id', user.id);
 
-                      final cloudExisting = await Supabase.instance.client
+                      await Supabase.instance.client
                           .from('recording_periods')
-                          .select('id')
-                          .eq('user_id', user.id)
-                          .eq('period_month', targetPeriod)
-                          .maybeSingle();
-
-                      if (cloudExisting != null) {
-                        await Supabase.instance.client
-                            .from('recording_periods')
-                            .update({'billing_rate': rate})
-                            .eq('id', cloudExisting['id']);
-                      } else {
-                        await Supabase.instance.client
-                            .from('recording_periods')
-                            .insert({
+                          .upsert(
+                            {
                               'user_id': user.id,
                               'period_month': targetPeriod,
                               'period_name': periodName,
                               'start_date': targetPeriod,
                               'end_date': endDate,
                               'billing_rate': rate,
-                            });
-                      }
+                            },
+                            onConflict: 'user_id, period_month',
+                          ); // Targets your specific unique constraint
                     }
 
                     if (mounted) {
-                      Navigator.pop(context); // Properly close dialog
+                      Navigator.pop(context); // Dismiss the dialog properly
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -432,16 +404,18 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
                         ),
                       );
 
-                      // THE FIX: Instead of restarting the whole app shell (which causes loops),
-                      // we just invalidate the Riverpod state to refresh the UI numbers instantly.
+                      // Invalidate state to instantly refresh UI rather than rebuilding the entire shell
                       ref.invalidate(inventoryProvider);
                     }
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error saving rate: $e'),
+                          content: Text(
+                            'Supabase Sync Error: $e\nEnsure RLS policies are enabled.',
+                          ),
                           backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 4),
                         ),
                       );
                     }
