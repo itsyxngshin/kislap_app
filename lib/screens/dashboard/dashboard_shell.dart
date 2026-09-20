@@ -1,5 +1,5 @@
 import 'dart:ui';
-import 'dart:async'; // <-- Required for the network polling timer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -50,15 +50,13 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     super.dispose();
   }
 
-  // --- NEW: Network Polling Engine ---
   void _startNetworkPolling() {
-    _checkNetwork(); // Initial check
+    _checkNetwork();
     _networkTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkNetwork());
   }
 
   Future<void> _checkNetwork() async {
     try {
-      // A lightweight call that doesn't consume heavy bandwidth
       await Supabase.instance.client.from('app_settings').select('id').limit(1);
       if (_isOffline && mounted) setState(() => _isOffline = false);
     } catch (_) {
@@ -68,7 +66,7 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
 
   Future<void> _runStartupSequence() async {
     await _checkSystemStatus();
-    await _ensureCloudProfile(); // <-- NEW: Silent Profile Migration
+    await _ensureCloudProfile();
     await Future.delayed(const Duration(milliseconds: 600));
 
     if (mounted) {
@@ -79,7 +77,6 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     }
   }
 
-  // --- NEW: Automatic Cloud Profile Generator for Legacy Users ---
   Future<void> _ensureCloudProfile() async {
     try {
       final supabase = Supabase.instance.client;
@@ -90,7 +87,6 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
       final profile = await supabase.from('profiles').select('id').eq('id', user.id).maybeSingle();
 
       if (profile == null) {
-        // Fetch existing local data to seed the new cloud profile seamlessly
         final db = await DatabaseHelper.instance.database;
         final settings = await db.query('user_settings', limit: 1);
 
@@ -113,10 +109,8 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
           'role': 'user',
           'is_active': true,
         });
-        debugPrint('Legacy account detected. Cloud profile successfully generated.');
       }
     } catch (e) {
-      debugPrint('Profile check skipped (App is likely offline): $e');
       if (!_isOffline && mounted) setState(() => _isOffline = true);
     }
   }
@@ -407,6 +401,9 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
     final hintColor = textColor.withOpacity(0.6);
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
+    // MATHEMATICAL TOP PADDING CALCULATION (Replaces SafeArea for the overlay)
+    final safeTop = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       extendBody: true,
@@ -418,32 +415,30 @@ class _DashboardShellState extends ConsumerState<DashboardShell> {
             children: _screens,
           ),
 
-          // 2. NEW: Floating Offline Banner (Animated Pill)
-          SafeArea(
-            child: AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutBack,
-              top: _isOffline ? 10 : -60,
-              left: 20,
-              right: 20,
-              child: Material(
-                elevation: 6,
-                borderRadius: BorderRadius.circular(20),
-                color: AppColors.adminRed,
-                child: Container(
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.wifi_off, color: Colors.white, size: 16),
-                      const SizedBox(width: 10),
-                      Text(
-                        isPh ? 'Offline Mode - Walang Internet' : 'Offline Mode - No Internet',
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
-                      ),
-                    ],
-                  ),
+          // 2. FIXED: Floating Offline Banner explicitly inside the Stack
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutBack,
+            top: _isOffline ? safeTop + 10 : -80, // Safely drops below device notch
+            left: 20,
+            right: 20,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(20),
+              color: AppColors.adminRed,
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                    const SizedBox(width: 10),
+                    Text(
+                      isPh ? 'Offline Mode - Walang Internet' : 'Offline Mode - No Internet',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+                    ),
+                  ],
                 ),
               ),
             ),
