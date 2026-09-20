@@ -67,70 +67,102 @@ class _GuestSetupScreenState extends ConsumerState<GuestSetupScreen> {
   }
 
   Future<void> _submitGuestSetup() async {
-    setState(() => _isLoading = true);
+      setState(() => _isLoading = true);
 
-    final budget = double.tryParse(_budgetController.text) ?? 0.0;
-    final tariff = double.tryParse(_tariffController.text) ?? 12.35;
-    final isPh = ref.read(settingsProvider).language == 'ph';
+      final budget = double.tryParse(_budgetController.text) ?? 0.0;
+      final tariff = double.tryParse(_tariffController.text) ?? 12.35;
+      final isPh = ref.read(settingsProvider).language == 'ph';
 
-    try {
-      final db = await DatabaseHelper.instance.database;
+      try {
+        final db = await DatabaseHelper.instance.database;
 
-      await db.insert(
-        'user_settings',
-        {
-          'id': 1,
-          'monthly_budget': budget,
-          'tariff_rate': tariff,
-          'household_size': _householdSize,
-          'language': isPh ? 'ph' : 'en',
-          'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
-        },
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+        // 1. Calculate previous month (M-1) parameters
+        final now = DateTime.now();
+        int prevMonth = now.month - 1;
+        int prevYear = now.year;
+        if (prevMonth == 0) {
+          prevMonth = 12;
+          prevYear--;
+        }
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            title: Text(isPh ? 'Matagumpay na Nai-save!' : 'Setup Complete!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
-            content: Text(isPh
-              ? 'Gusto mo bang magdagdag na ng mga appliances ngayon, o dumiretso sa dashboard?'
-              : 'Would you like to add your household appliances now, or proceed to the dashboard?',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4),
-            ),
-            actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => DashboardShell()), // Removed const
-                                    (route) => false
-                                  ),
-                                  child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
-                                ),
-                                FilledButton(
-                                  onPressed: () {
-                                    Navigator.pop(ctx);
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => OnboardingDevicesScreen()) // Removed const
-                                    );
-                                  },
-                                  style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
-                                  child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-          ),
+        final String paddedPrevMonth = prevMonth.toString().padLeft(2, '0');
+        final String prevPeriodMonth = '$prevYear-$paddedPrevMonth-01';
+        final int lastDay = DateTime(prevYear, prevMonth + 1, 0).day;
+        final String prevEndDate = '$prevYear-$paddedPrevMonth-$lastDay';
+
+        final monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        final monthsPh = ['Enero', 'Pebrero', 'Marso', 'Abril', 'Mayo', 'Hunyo', 'Hulyo', 'Agosto', 'Setyembre', 'Oktubre', 'Nobyembre', 'Disyembre'];
+        final String prevPeriodName = isPh ? '${monthsPh[prevMonth - 1]} $prevYear' : '${monthsEn[prevMonth - 1]} $prevYear';
+
+        // 2. Save active baseline to user_settings
+        await db.insert(
+          'user_settings',
+          {
+            'id': 1,
+            'monthly_budget': budget,
+            'tariff_rate': tariff,
+            'household_size': _householdSize,
+            'language': isPh ? 'ph' : 'en',
+            'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
         );
+
+        // 3. Record the historical baseline entry under M-1
+        await db.insert(
+          'recording_periods',
+          {
+            'period_month': prevPeriodMonth,
+            'period_name': prevPeriodName,
+            'start_date': prevPeriodMonth,
+            'end_date': prevEndDate,
+            'billing_rate': tariff,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              title: Text(isPh ? 'Matagumpay na Nai-save!' : 'Setup Complete!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+              content: Text(isPh
+                ? 'Gusto mo bang magdagdag na ng mga appliances ngayon, o dumiretso sa dashboard?'
+                : 'Would you like to add your household appliances now, or proceed to the dashboard?',
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8), height: 1.4),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => DashboardShell()),
+                    (route) => false
+                  ),
+                  child: Text(isPh ? 'Mamaya na' : 'Skip for now', style: const TextStyle(color: AppColors.appYellow)),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => OnboardingDevicesScreen())
+                    );
+                  },
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+                  child: Text(isPh ? 'Magdagdag ng Gamit' : 'Add Appliances', style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving setup: $e'), backgroundColor: AppColors.adminRed));
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving setup: $e'), backgroundColor: AppColors.adminRed));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
 
   @override
   Widget build(BuildContext context) {
