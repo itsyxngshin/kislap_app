@@ -17,14 +17,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _totalUsers = 0;
   double _globalDailyKwh = 0;
 
-  // Rate Management State
-  final TextEditingController _mainlandRateController = TextEditingController();
-  final TextEditingController _islandRateController = TextEditingController();
-  bool _isUpdatingRate = false;
-  bool _isLoadingData = true;
-  DateTime _selectedMonth = DateTime(2026, 7, 1);
-  final List<DateTime> _monthOptions = List.generate(24, (i) => DateTime(2025 + (i ~/ 12), (i % 12) + 1, 1));
-
   // Lockdown & Maintenance State
   bool _isMaintenanceMode = false;
   final TextEditingController _lockMessageController = TextEditingController();
@@ -33,13 +25,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRatesForSelectedMonth();
     _fetchAdminAnalytics();
     _fetchSystemSettings();
   }
-
-  String _toDbDate(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-01';
-  String _formatMonth(DateTime date) => '${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.month - 1]} ${date.year}';
 
   // --- DATABASE QUERIES ---
 
@@ -47,7 +35,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       final supabase = Supabase.instance.client;
       final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
-      
+
       // Execute a relational join to calculate the global draw from synced offline data
       final allInventory = await supabase.from('user_inventory').select('''
         adjusted_hours,
@@ -55,12 +43,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           preset_wattage
         )
       ''');
-      
+
       double totalKwh = 0;
       for (var item in allInventory) {
         final hours = item['adjusted_hours'] as num? ?? 0;
         final preset = item['appliance_presets'] as Map<String, dynamic>?;
-        
+
         if (preset != null) {
           final watts = preset['preset_wattage'] as num? ?? 0;
           totalKwh += ((watts / 1000) * hours);
@@ -78,27 +66,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _fetchRatesForSelectedMonth() async {
-    setState(() => _isLoadingData = true);
-    try {
-      final data = await Supabase.instance.client.from('billing_rates').select().eq('billing_month', _toDbDate(_selectedMonth)).maybeSingle();
-      if (mounted) {
-        setState(() {
-          if (data != null) {
-            _mainlandRateController.text = data['mainland_rate'].toString();
-            _islandRateController.text = data['island_rate'].toString();
-          } else {
-            _mainlandRateController.clear();
-            _islandRateController.clear();
-          }
-          _isLoadingData = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingData = false);
-    }
-  }
-
   Future<void> _fetchSystemSettings() async {
     try {
       final data = await Supabase.instance.client.from('app_settings').select().eq('id', 1).maybeSingle();
@@ -109,35 +76,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         });
       }
     } catch (_) {}
-  }
-
-  Future<void> _saveRates() async {
-    if (_mainlandRateController.text.isEmpty || _islandRateController.text.isEmpty) return;
-    setState(() => _isUpdatingRate = true);
-    final String dbDate = _toDbDate(_selectedMonth);
-    
-    try {
-      final supabase = Supabase.instance.client;
-      final existing = await supabase.from('billing_rates').select().eq('billing_month', dbDate).maybeSingle();
-
-      if (existing != null) {
-        await supabase.from('billing_rates').update({
-          'mainland_rate': double.parse(_mainlandRateController.text),
-          'island_rate': double.parse(_islandRateController.text),
-        }).eq('billing_month', dbDate);
-      } else {
-        await supabase.from('billing_rates').insert({
-          'billing_month': dbDate,
-          'mainland_rate': double.parse(_mainlandRateController.text),
-          'island_rate': double.parse(_islandRateController.text),
-        });
-      }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rates saved for ${_formatMonth(_selectedMonth)}!'), backgroundColor: Colors.green));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
-    } finally {
-      if (mounted) setState(() => _isUpdatingRate = false);
-    }
   }
 
   Future<void> _saveSystemSettings() async {
@@ -171,8 +109,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   void dispose() {
-    _mainlandRateController.dispose();
-    _islandRateController.dispose();
     _lockMessageController.dispose();
     super.dispose();
   }
@@ -180,11 +116,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final hintColor = textColor.withValues(alpha: 0.6);
+    final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     return DefaultTabController(
-      length: 3, 
+      length: 2,
       child: Container(
         decoration: AppTheme.globalBackground(context),
         child: Scaffold(
@@ -208,7 +144,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               unselectedLabelColor: hintColor,
               tabs: const [
                 Tab(icon: Icon(Icons.analytics_outlined), text: 'Analytics'),
-                Tab(icon: Icon(Icons.bolt), text: 'Rates'),
                 Tab(icon: Icon(Icons.lock_person_outlined), text: 'Lockdown'),
               ],
             ),
@@ -216,7 +151,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           body: TabBarView(
             children: [
               _buildAnalyticsTab(surfaceColor, textColor, hintColor),
-              _buildRatesTab(surfaceColor, textColor, hintColor),
               _buildLockdownTab(surfaceColor, textColor, hintColor),
             ],
           ),
@@ -240,7 +174,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -256,7 +190,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -278,100 +212,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildRatesTab(Color surfaceColor, Color textColor, Color hintColor) {
-    return _isLoadingData
-        ? const Center(child: CircularProgressIndicator(color: AppColors.appYellow))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Select Billing Month', style: TextStyle(color: hintColor, fontSize: 13)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<DateTime>(
-                  initialValue: _selectedMonth,
-                  dropdownColor: surfaceColor,
-                  icon: Icon(Icons.calendar_today, color: hintColor, size: 20),
-                  style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: surfaceColor,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                  items: _monthOptions.map((date) {
-                    return DropdownMenuItem(value: date, child: Text(_formatMonth(date)));
-                  }).toList(),
-                  onChanged: (DateTime? newValue) {
-                    if (newValue != null) {
-                      setState(() => _selectedMonth = newValue);
-                      _fetchRatesForSelectedMonth(); 
-                    }
-                  },
-                ),
-                const SizedBox(height: 30),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: surfaceColor.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.adminRed.withValues(alpha: 0.5)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Rate Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Enter the exact ₱/kWh rates for ${_formatMonth(_selectedMonth)}.',
-                        style: TextStyle(color: hintColor, fontSize: 13, height: 1.5),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Text('Mainland Rate (₱ / kWh)', style: TextStyle(color: hintColor, fontSize: 13)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _mainlandRateController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.bolt, color: AppColors.appYellow),
-                    filled: true,
-                    fillColor: surfaceColor,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text('Island Rate (₱ / kWh)', style: TextStyle(color: hintColor, fontSize: 13)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _islandRateController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.waves, color: Colors.cyanAccent),
-                    filled: true,
-                    fillColor: surfaceColor,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _isUpdatingRate ? null : _saveRates,
-                    icon: _isUpdatingRate 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black87, strokeWidth: 2))
-                        : const Icon(Icons.save),
-                    label: Text(_isUpdatingRate ? 'Saving...' : 'Save Rates', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          );
-  }
-
   Widget _buildLockdownTab(Color surfaceColor, Color textColor, Color hintColor) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -381,9 +221,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.adminRed.withValues(alpha: 0.1),
+              color: AppColors.adminRed.withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.adminRed.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.adminRed.withOpacity(0.3)),
             ),
             child: Row(
               children: [
@@ -403,10 +243,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(height: 30),
-          
+
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(color: surfaceColor.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(12)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -437,7 +277,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             style: TextStyle(color: textColor, fontSize: 15),
             decoration: InputDecoration(
               hintText: 'Enter the message that locked users will see...',
-              hintStyle: TextStyle(color: hintColor.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(color: hintColor.withOpacity(0.5)),
               filled: true,
               fillColor: surfaceColor,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -450,7 +290,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: FilledButton.icon(
               onPressed: _isUpdatingSettings ? null : _saveSystemSettings,
               style: FilledButton.styleFrom(backgroundColor: AppColors.adminRed, foregroundColor: Colors.white),
-              icon: _isUpdatingSettings 
+              icon: _isUpdatingSettings
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.gavel),
               label: Text(_isUpdatingSettings ? 'Applying Lock...' : 'Save System Status', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -466,7 +306,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       height: 300,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: surfaceColor.withValues(alpha: 0.5),
+        color: surfaceColor.withOpacity(0.5),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -500,7 +340,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     isStrokeCapRound: true,
                     belowBarData: BarAreaData(
                       show: true,
-                      color: AppColors.appYellow.withValues(alpha: 0.2),
+                      color: AppColors.appYellow.withOpacity(0.2),
                     ),
                   ),
                 ],

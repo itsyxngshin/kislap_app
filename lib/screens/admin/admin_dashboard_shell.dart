@@ -1,94 +1,81 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_theme.dart';
-import '../auth/sign_in_screen.dart';
-import '../dashboard/dashboard_shell.dart';
-import 'admin_analytics_screen.dart';
-import 'admin_lockdown_screen.dart';
+import '../../providers/settings_provider.dart';
+import 'admin_preset_management_screen.dart';
+import 'admin_manual_screen.dart';
+import 'admin_overview_screen.dart';
 
-class AdminDashboardShell extends StatefulWidget {
+class AdminDashboardShell extends ConsumerStatefulWidget {
   const AdminDashboardShell({super.key});
 
   @override
-  State<AdminDashboardShell> createState() => _AdminDashboardShellState();
+  ConsumerState<AdminDashboardShell> createState() => _AdminDashboardShellState();
 }
 
-class _AdminDashboardShellState extends State<AdminDashboardShell> {
-  Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const SignInScreen()),
-        (route) => false,
-      );
-    }
-  }
+class _AdminDashboardShellState extends ConsumerState<AdminDashboardShell> {
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = [
+    const AdminOverviewScreen(), // High-level system metrics
+    const AdminPresetManagementScreen(), // The Cloud CRUD Interface
+    const AdminManualScreen(), // Static PDF/Text guide for admins
+  ];
 
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
-    final surfaceColor = Theme.of(context).colorScheme.surface;
+    final hintColor = textColor.withOpacity(0.6);
+    final isPh = ref.watch(settingsProvider).language == 'ph';
 
-    return DefaultTabController(
-      length: 2, // Condensed from 3 to 2 tabs
-      child: Container(
-        decoration: AppTheme.globalBackground(context),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: surfaceColor.withOpacity(0.95),
-            elevation: 0,
-            title: Row(
-              children: [
-                const Icon(Icons.admin_panel_settings, color: AppColors.adminRed),
-                const SizedBox(width: 10),
-                Text('Admin Control', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.exit_to_app),
-                color: textColor.withOpacity(0.7),
-                tooltip: 'Switch to User App',
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DashboardShell()),
-                    (route) => false,
-                  );
-                },
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      extendBody: true,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              height: 70,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: textColor.withOpacity(0.1), width: 1),
               ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                color: textColor.withOpacity(0.7),
-                onPressed: _signOut,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.admin_panel_settings_outlined, Icons.admin_panel_settings, isPh ? 'Oversight' : 'Oversight', 0, textColor, hintColor),
+                  _buildNavItem(Icons.storage_outlined, Icons.storage, isPh ? 'Mga Preset' : 'Presets', 1, textColor, hintColor),
+                  _buildNavItem(Icons.menu_book_outlined, Icons.menu_book, isPh ? 'Manwal' : 'Manual', 2, textColor, hintColor),
+                ],
               ),
-            ],
-            bottom: TabBar(
-              indicatorColor: AppColors.adminRed,
-              labelColor: AppColors.adminRed,
-              unselectedLabelColor: textColor.withOpacity(0.5),
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.analytics_outlined),
-                  text: 'Analytics',
-                ),
-                Tab(
-                  icon: Icon(Icons.lock_person_outlined),
-                  text: 'Lockdown',
-                ),
-              ],
             ),
-          ),
-          body: const TabBarView(
-            children: [
-              AdminAnalyticsScreen(),
-              AdminLockdownScreen(),
-            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, IconData activeIcon, String label, int index, Color textColor, Color hintColor) {
+    final isSelected = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(isSelected ? activeIcon : icon, color: isSelected ? AppColors.adminRed : hintColor, size: 24),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: isSelected ? AppColors.adminRed : hintColor, fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+        ],
       ),
     );
   }
