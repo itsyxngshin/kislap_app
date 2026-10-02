@@ -31,9 +31,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isSaving = false;
 
   List<Map<String, dynamic>> _periods = [];
-  final List<String> _monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  final List<String> _monthsPh = ['Enero', 'Pebrero', 'Marso', 'Abril', 'Mayo', 'Hunyo', 'Hulyo', 'Agosto', 'Setyembre', 'Oktubre', 'Nobyembre', 'Disyembre'];
-  final List<int> _years = List.generate(DateTime.now().year - 2023, (index) => 2024 + index).reversed.toList();
+  final List<String> _monthsEn = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  final List<String> _monthsPh = [
+    'Enero',
+    'Pebrero',
+    'Marso',
+    'Abril',
+    'Mayo',
+    'Hunyo',
+    'Hulyo',
+    'Agosto',
+    'Setyembre',
+    'Oktubre',
+    'Nobyembre',
+    'Disyembre',
+  ];
+  final List<int> _years = List.generate(
+    DateTime.now().year - 2023,
+    (index) => 2024 + index,
+  ).reversed.toList();
 
   @override
   void initState() {
@@ -50,7 +79,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   String _getCurrentBillingMonth(bool isPh) {
     final now = DateTime.now();
-    return isPh ? '${_monthsPh[now.month - 1]} ${now.year}' : '${_monthsEn[now.month - 1]} ${now.year}';
+    return isPh
+        ? '${_monthsPh[now.month - 1]} ${now.year}'
+        : '${_monthsEn[now.month - 1]} ${now.year}';
   }
 
   Future<void> _loadInitialData() async {
@@ -73,25 +104,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // 2. Authoritative Source: Fetch strictly from the 'profiles' table
         final profileData = await Supabase.instance.client
             .from('profiles')
-            .select('full_name, monthly_budget, tariff_rate, household_size, role')
+            .select(
+              'full_name, monthly_budget, tariff_rate, household_size, role',
+            )
             .eq('id', user.id)
             .maybeSingle();
 
         if (profileData != null) {
           // Overwrite fallback with verified database profile name
-          if (profileData['full_name'] != null && profileData['full_name'].toString().trim().isNotEmpty) {
+          if (profileData['full_name'] != null &&
+              profileData['full_name'].toString().trim().isNotEmpty) {
             _fullName = profileData['full_name'];
           }
 
           _role = profileData['role'] ?? 'user';
 
           if (profileData['monthly_budget'] != null) {
-             await db.update('user_settings', {
-              'monthly_budget': (profileData['monthly_budget'] as num).toDouble(),
+            await db.update('user_settings', {
+              'monthly_budget': (profileData['monthly_budget'] as num)
+                  .toDouble(),
               'tariff_rate': (profileData['tariff_rate'] as num).toDouble(),
-              'household_size': profileData['household_size'] as String? ?? 'Small',
+              'household_size':
+                  profileData['household_size'] as String? ?? 'Small',
               'language': ref.read(settingsProvider).language,
-              'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
+              'theme_mode':
+                  ref.read(settingsProvider).themeMode == ThemeMode.dark
+                  ? 'dark'
+                  : 'light',
             }, where: 'id = 1');
           }
         }
@@ -130,7 +169,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _householdSize = data['household_size'] as String? ?? 'Small';
       }
 
-      final periodData = await db.query('recording_periods', orderBy: 'period_month DESC');
+      final periodData = await db.query(
+        'recording_periods',
+        orderBy: 'period_month DESC',
+      );
       if (mounted) _periods = periodData;
     } catch (_) {}
 
@@ -140,7 +182,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _loadPeriods() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      final data = await db.query('recording_periods', orderBy: 'period_month DESC');
+      final data = await db.query(
+        'recording_periods',
+        orderBy: 'period_month DESC',
+      );
       if (mounted) setState(() => _periods = data);
     } catch (_) {}
   }
@@ -158,7 +203,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         'tariff_rate': tariff,
         'household_size': _householdSize,
         'language': ref.read(settingsProvider).language,
-        'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
+        'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark
+            ? 'dark'
+            : 'light',
       }, where: 'id = 1');
 
       final now = DateTime.now();
@@ -168,9 +215,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final String endDate = '${now.year}-$paddedMonth-$lastDay';
       final String periodName = '${_monthsEn[now.month - 1]} ${now.year}';
 
-      final localExisting = await db.query('recording_periods', where: 'period_month = ?', whereArgs: [periodMonth]);
+      final localExisting = await db.query(
+        'recording_periods',
+        where: 'period_month = ?',
+        whereArgs: [periodMonth],
+      );
       if (localExisting.isNotEmpty) {
-        await db.update('recording_periods', {'billing_rate': tariff}, where: 'period_month = ?', whereArgs: [periodMonth]);
+        await db.update(
+          'recording_periods',
+          {'billing_rate': tariff},
+          where: 'period_month = ?',
+          whereArgs: [periodMonth],
+        );
       } else {
         await db.insert('recording_periods', {
           'period_month': periodMonth,
@@ -183,11 +239,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (user != null) {
         try {
-          await Supabase.instance.client.from('profiles').update({
-            'monthly_budget': budget,
-            'tariff_rate': tariff,
-            'household_size': _householdSize,
-          }).eq('id', user.id);
+          await Supabase.instance.client
+              .from('profiles')
+              .update({
+                'monthly_budget': budget,
+                'tariff_rate': tariff,
+                'household_size': _householdSize,
+              })
+              .eq('id', user.id);
 
           final cloudExisting = await Supabase.instance.client
               .from('recording_periods')
@@ -197,9 +256,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               .maybeSingle();
 
           if (cloudExisting != null) {
-            await Supabase.instance.client.from('recording_periods').update({
-              'billing_rate': tariff,
-            }).eq('id', cloudExisting['id']);
+            await Supabase.instance.client
+                .from('recording_periods')
+                .update({'billing_rate': tariff})
+                .eq('id', cloudExisting['id']);
           } else {
             await Supabase.instance.client.from('recording_periods').insert({
               'user_id': user.id,
@@ -219,24 +279,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await _loadPeriods();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.read(settingsProvider).language == 'ph' ? 'Na-save na!' : 'Configuration saved!'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ref.read(settingsProvider).language == 'ph'
+                  ? 'Na-save na!'
+                  : 'Configuration saved!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving: $e'), backgroundColor: AppColors.adminRed));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
+        );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
   Future<void> _signOut() async {
+    setState(() => _isLoading = true);
     await Supabase.instance.client.auth.signOut();
+
+    // THE FIX: Nuke the local SQLite database to prepare for a fresh guest
+    try {
+      final db = await DatabaseHelper.instance.database;
+      await db.delete('user_inventory');
+      await db.delete('recording_periods');
+      await db.delete('user_settings');
+    } catch (e) {
+      debugPrint('Error wiping local DB: $e');
+    }
+
     if (mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (route) => false,
+      );
     }
   }
 
   void _showAddPeriodModal(bool isPh) {
-    String selectedMonth = isPh ? _monthsPh[DateTime.now().month - 1] : _monthsEn[DateTime.now().month - 1];
+    String selectedMonth = isPh
+        ? _monthsPh[DateTime.now().month - 1]
+        : _monthsEn[DateTime.now().month - 1];
     int selectedYear = DateTime.now().year;
     final TextEditingController rateController = TextEditingController();
 
@@ -251,8 +344,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Container(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24, left: 24, right: 24, top: 24),
-              decoration: BoxDecoration(color: surfaceColor.withOpacity(0.95), borderRadius: const BorderRadius.vertical(top: Radius.circular(24)), border: Border.all(color: AppColors.appYellow.withOpacity(0.3))),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              decoration: BoxDecoration(
+                color: surfaceColor.withOpacity(0.95),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                border: Border.all(color: AppColors.appYellow.withOpacity(0.3)),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,12 +364,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(isPh ? 'Itala ang Nakaraang Bill' : 'Log Previous Bill', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold, height: 1.2)),
-                      IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(context)),
+                      Text(
+                        isPh ? 'Itala ang Nakaraang Bill' : 'Log Previous Bill',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white54),
+                        onPressed: () => Navigator.pop(context),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text(isPh ? 'I-record ang nakaraang singil para makita ang trend ng iyong paggamit.' : 'Record past billing rates to track your usage history.', style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+                  Text(
+                    isPh
+                        ? 'I-record ang nakaraang singil para makita ang trend ng iyong paggamit.'
+                        : 'Record past billing rates to track your usage history.',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   Row(
@@ -274,10 +398,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         flex: 2,
                         child: DropdownButtonFormField<String>(
                           value: selectedMonth,
-                          decoration: InputDecoration(filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.black26,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
                           dropdownColor: surfaceColor,
-                          items: (isPh ? _monthsPh : _monthsEn).map((m) => DropdownMenuItem(value: m, child: Text(m, style: TextStyle(color: textColor)))).toList(),
-                          onChanged: (val) => setModalState(() => selectedMonth = val!),
+                          items: (isPh ? _monthsPh : _monthsEn)
+                              .map(
+                                (m) => DropdownMenuItem(
+                                  value: m,
+                                  child: Text(
+                                    m,
+                                    style: TextStyle(color: textColor),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setModalState(() => selectedMonth = val!),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -285,17 +427,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         flex: 1,
                         child: DropdownButtonFormField<int>(
                           value: selectedYear,
-                          decoration: InputDecoration(filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Colors.black26,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
                           dropdownColor: surfaceColor,
-                          items: _years.map((y) => DropdownMenuItem(value: y, child: Text(y.toString(), style: TextStyle(color: textColor)))).toList(),
-                          onChanged: (val) => setModalState(() => selectedYear = val!),
+                          items: _years
+                              .map(
+                                (y) => DropdownMenuItem(
+                                  value: y,
+                                  child: Text(
+                                    y.toString(),
+                                    style: TextStyle(color: textColor),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setModalState(() => selectedYear = val!),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
 
-                  CustomTextField(controller: rateController, hint: 'Utility Rate (₱/kWh)', icon: Icons.bolt, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                  CustomTextField(
+                    controller: rateController,
+                    hint: 'Utility Rate (₱/kWh)',
+                    icon: Icons.bolt,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                  ),
                   const SizedBox(height: 30),
 
                   SizedBox(
@@ -305,17 +472,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         final rate = double.tryParse(rateController.text);
                         if (rate == null || rate <= 0) return;
 
-                        int monthIndex = (isPh ? _monthsPh : _monthsEn).indexOf(selectedMonth) + 1;
-                        String paddedMonth = monthIndex.toString().padLeft(2, '0');
+                        int monthIndex =
+                            (isPh ? _monthsPh : _monthsEn).indexOf(
+                              selectedMonth,
+                            ) +
+                            1;
+                        String paddedMonth = monthIndex.toString().padLeft(
+                          2,
+                          '0',
+                        );
                         String periodMonth = '$selectedYear-$paddedMonth-01';
-                        int lastDay = DateTime(selectedYear, monthIndex + 1, 0).day;
+                        int lastDay = DateTime(
+                          selectedYear,
+                          monthIndex + 1,
+                          0,
+                        ).day;
 
                         try {
                           final db = await DatabaseHelper.instance.database;
 
-                          final localExisting = await db.query('recording_periods', where: 'period_month = ?', whereArgs: [periodMonth]);
+                          final localExisting = await db.query(
+                            'recording_periods',
+                            where: 'period_month = ?',
+                            whereArgs: [periodMonth],
+                          );
                           if (localExisting.isNotEmpty) {
-                            await db.update('recording_periods', {'billing_rate': rate}, where: 'period_month = ?', whereArgs: [periodMonth]);
+                            await db.update(
+                              'recording_periods',
+                              {'billing_rate': rate},
+                              where: 'period_month = ?',
+                              whereArgs: [periodMonth],
+                            );
                           } else {
                             await db.insert('recording_periods', {
                               'period_month': periodMonth,
@@ -326,10 +513,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             });
                           }
 
-                          final user = Supabase.instance.client.auth.currentUser;
+                          final user =
+                              Supabase.instance.client.auth.currentUser;
                           if (user != null) {
                             try {
-                              final cloudExisting = await Supabase.instance.client
+                              final cloudExisting = await Supabase
+                                  .instance
+                                  .client
                                   .from('recording_periods')
                                   .select('id')
                                   .eq('user_id', user.id)
@@ -337,18 +527,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   .maybeSingle();
 
                               if (cloudExisting != null) {
-                                await Supabase.instance.client.from('recording_periods').update({
-                                  'billing_rate': rate,
-                                }).eq('id', cloudExisting['id']);
+                                await Supabase.instance.client
+                                    .from('recording_periods')
+                                    .update({'billing_rate': rate})
+                                    .eq('id', cloudExisting['id']);
                               } else {
-                                await Supabase.instance.client.from('recording_periods').insert({
-                                  'user_id': user.id,
-                                  'period_month': periodMonth,
-                                  'period_name': '$selectedMonth $selectedYear',
-                                  'start_date': periodMonth,
-                                  'end_date': '$selectedYear-$paddedMonth-$lastDay',
-                                  'billing_rate': rate,
-                                });
+                                await Supabase.instance.client
+                                    .from('recording_periods')
+                                    .insert({
+                                      'user_id': user.id,
+                                      'period_month': periodMonth,
+                                      'period_name':
+                                          '$selectedMonth $selectedYear',
+                                      'start_date': periodMonth,
+                                      'end_date':
+                                          '$selectedYear-$paddedMonth-$lastDay',
+                                      'billing_rate': rate,
+                                    });
                               }
                             } catch (e) {
                               debugPrint('Supabase insert failed: $e');
@@ -361,8 +556,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           }
                         } catch (e) {}
                       },
-                      style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      child: Text(isPh ? 'I-save' : 'Save Period', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.appYellow,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        isPh ? 'I-save' : 'Save Period',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -376,7 +584,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.appYellow));
+    if (_isLoading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.appYellow),
+      );
 
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
@@ -385,7 +596,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isPh = ref.watch(settingsProvider).language == 'ph';
     final devices = ref.watch(inventoryProvider);
     double optimizedDailyKwh = 0.0;
-    for (var device in devices) { optimizedDailyKwh += (device.presetWattage / 1000) * device.adjustedHours; }
+    for (var device in devices) {
+      optimizedDailyKwh += (device.presetWattage / 1000) * device.adjustedHours;
+    }
     final double optimizedMonthlyKwh = optimizedDailyKwh * 30;
 
     return Scaffold(
@@ -395,32 +608,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: SafeArea(
           bottom: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(left: 24, right: 24, top: 20, bottom: 120),
+            padding: const EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 20,
+              bottom: 120,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isPh ? 'Mga Setting' : 'Settings', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: textColor, height: 1.2)),
+                Text(
+                  isPh ? 'Mga Setting' : 'Settings',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                    height: 1.2,
+                  ),
+                ),
                 const SizedBox(height: 25),
 
                 // 1. Profile Header
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        height: 56, width: 56,
-                        decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: AppColors.appYellow.withOpacity(0.5))),
-                        child: Center(child: Text(_fullName.isNotEmpty ? _fullName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.appYellow, fontSize: 24, fontWeight: FontWeight.bold))),
+                        height: 56,
+                        width: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.appYellow.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.appYellow.withOpacity(0.5),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _fullName.isNotEmpty
+                                ? _fullName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              color: AppColors.appYellow,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 15),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_fullName, style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(
+                              _fullName,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             const SizedBox(height: 4),
-                            Text(_email, style: TextStyle(color: hintColor, fontSize: 13)),
+                            Text(
+                              _email,
+                              style: TextStyle(color: hintColor, fontSize: 13),
+                            ),
                           ],
                         ),
                       ),
@@ -431,29 +689,69 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                 // 2. DYNAMIC PAST MONTH PROJECTION
                 if (_periods.isNotEmpty && optimizedMonthlyKwh > 0) ...[
-                  Text(isPh ? 'PROYEKSYON BASE SA NAKARAAN' : 'PREVIOUS RATE PROJECTION', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold, height: 1.4)),
+                  Text(
+                    isPh
+                        ? 'PROYEKSYON BASE SA NAKARAAN'
+                        : 'PREVIOUS RATE PROJECTION',
+                    style: TextStyle(
+                      color: hintColor,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.bold,
+                      height: 1.4,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.appYellow.withOpacity(0.4))),
+                    decoration: BoxDecoration(
+                      color: AppColors.appYellow.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.appYellow.withOpacity(0.4),
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.history_toggle_off, color: AppColors.appYellow, size: 22),
+                            const Icon(
+                              Icons.history_toggle_off,
+                              color: AppColors.appYellow,
+                              size: 22,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                isPh ? 'Kung inilapat mo ang halaga mula noong ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) sa iyong kasalukuyang konsumo (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):' : 'If you applied your rate from ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) to your current optimized setup (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):',
-                                style: TextStyle(color: textColor.withOpacity(0.9), fontSize: 12, height: 1.4),
+                                isPh
+                                    ? 'Kung inilapat mo ang halaga mula noong ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) sa iyong kasalukuyang konsumo (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):'
+                                    : 'If you applied your rate from ${_periods.first['period_name']} (₱${_periods.first['billing_rate'].toStringAsFixed(2)}/kWh) to your current optimized setup (${optimizedMonthlyKwh.toStringAsFixed(1)} kWh):',
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.9),
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Text(isPh ? 'Est. na Bayarin' : 'Projected Bill', style: TextStyle(color: AppColors.appYellow.withOpacity(0.8), fontSize: 11)),
-                        Text('₱${(optimizedMonthlyKwh * _periods.first['billing_rate']).toStringAsFixed(2)}', style: TextStyle(color: textColor, fontSize: 28, fontWeight: FontWeight.bold)),
+                        Text(
+                          isPh ? 'Est. na Bayarin' : 'Projected Bill',
+                          style: TextStyle(
+                            color: AppColors.appYellow.withOpacity(0.8),
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          '₱${(optimizedMonthlyKwh * _periods.first['billing_rate']).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -461,39 +759,111 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
 
                 // 3. Financial Configuration
-                Text(isPh ? 'BATAYANG PINANSYAL' : 'FINANCIAL BASELINE', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                Text(
+                  isPh ? 'BATAYANG PINANSYAL' : 'FINANCIAL BASELINE',
+                  style: TextStyle(
+                    color: hintColor,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isPh ? 'Limitasyon sa Budget' : 'Monthly Budget Limit', style: TextStyle(color: hintColor, fontSize: 12)),
+                      Text(
+                        isPh ? 'Limitasyon sa Budget' : 'Monthly Budget Limit',
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _budgetController, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(prefixText: '₱ ', prefixStyle: TextStyle(color: textColor, fontSize: 18), filled: true, fillColor: surfaceColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                        controller: _budgetController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          prefixText: '₱ ',
+                          prefixStyle: TextStyle(
+                            color: textColor,
+                            fontSize: 18,
+                          ),
+                          filled: true,
+                          fillColor: surfaceColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 24),
 
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        decoration: BoxDecoration(color: AppColors.appYellow.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.appYellow.withOpacity(0.3))),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.appYellow.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.appYellow.withOpacity(0.3),
+                          ),
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.calendar_today_outlined, color: AppColors.appYellow, size: 20),
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              color: AppColors.appYellow,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
-                            Expanded(child: Text(isPh ? 'Halaga para sa ${_getCurrentBillingMonth(true)}' : 'Active Rate for ${_getCurrentBillingMonth(false)}', style: const TextStyle(color: AppColors.appYellow, fontSize: 12, fontWeight: FontWeight.bold, height: 1.3))),
+                            Expanded(
+                              child: Text(
+                                isPh
+                                    ? 'Halaga para sa ${_getCurrentBillingMonth(true)}'
+                                    : 'Active Rate for ${_getCurrentBillingMonth(false)}',
+                                style: const TextStyle(
+                                  color: AppColors.appYellow,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: _tariffController, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        controller: _tariffController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         style: TextStyle(color: textColor, fontSize: 16),
-                        decoration: InputDecoration(prefixText: '₱ ', suffixText: '/ kWh', suffixStyle: TextStyle(color: hintColor), filled: true, fillColor: surfaceColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                        decoration: InputDecoration(
+                          prefixText: '₱ ',
+                          suffixText: '/ kWh',
+                          suffixStyle: TextStyle(color: hintColor),
+                          filled: true,
+                          fillColor: surfaceColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -501,16 +871,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 35),
 
                 // 4. Classification
-                Text(isPh ? 'URI NG BAHAYAN' : 'HOUSEHOLD CLASSIFICATION', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                Text(
+                  isPh ? 'URI NG BAHAYAN' : 'HOUSEHOLD CLASSIFICATION',
+                  style: TextStyle(
+                    color: hintColor,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
+                  ),
                   child: Column(
                     children: [
-                      _buildRadioOption('Small (0 - 5 kVA)', 'Small', isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, etc.', textColor, hintColor),
-                      _buildRadioOption('Medium (6 - 15 kVA)', 'Medium', isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, fridge, etc.', textColor, hintColor),
-                      _buildRadioOption('Large (16 - 25 kVA)', 'Large', isPh ? 'Malakas na konsumo: Maraming aircon at appliances.' : 'Heavy usage. Multiple ACs, large appliances.', textColor, hintColor),
+                      _buildRadioOption(
+                        'Small (0 - 5 kVA)',
+                        'Small',
+                        isPh
+                            ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.'
+                            : 'Basic appliances only. Fans, TV, fridge, etc.',
+                        textColor,
+                        hintColor,
+                      ),
+                      _buildRadioOption(
+                        'Medium (6 - 15 kVA)',
+                        'Medium',
+                        isPh
+                            ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.'
+                            : 'Standard home. 1-2 air conditioners, fridge, etc.',
+                        textColor,
+                        hintColor,
+                      ),
+                      _buildRadioOption(
+                        'Large (16 - 25 kVA)',
+                        'Large',
+                        isPh
+                            ? 'Malakas na konsumo: Maraming aircon at appliances.'
+                            : 'Heavy usage. Multiple ACs, large appliances.',
+                        textColor,
+                        hintColor,
+                      ),
                     ],
                   ),
                 ),
@@ -520,8 +926,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: _isSaving ? null : _saveConfiguration,
-                    style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isPh ? 'I-save' : 'Save Configuration', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            isPh ? 'I-save' : 'Save Configuration',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 40),
@@ -530,11 +958,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(isPh ? 'KASAYSAYAN NG BILL' : 'BILLING HISTORY', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold, height: 1.3)),
+                    Text(
+                      isPh ? 'KASAYSAYAN NG BILL' : 'BILLING HISTORY',
+                      style: TextStyle(
+                        color: hintColor,
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.bold,
+                        height: 1.3,
+                      ),
+                    ),
                     TextButton.icon(
                       onPressed: () => _showAddPeriodModal(isPh),
-                      icon: const Icon(Icons.add, color: AppColors.appYellow, size: 16),
-                      label: Text(isPh ? 'Magdagdag ng Buwan' : 'Add Month', style: const TextStyle(color: AppColors.appYellow, fontSize: 12)),
+                      icon: const Icon(
+                        Icons.add,
+                        color: AppColors.appYellow,
+                        size: 16,
+                      ),
+                      label: Text(
+                        isPh ? 'Magdagdag ng Buwan' : 'Add Month',
+                        style: const TextStyle(
+                          color: AppColors.appYellow,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -543,8 +990,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.3), borderRadius: BorderRadius.circular(16)),
-                    child: Text(isPh ? 'Wala pang naitalang nakaraang bill.' : 'No past billing periods recorded.', textAlign: TextAlign.center, style: TextStyle(color: hintColor, fontSize: 14)),
+                    decoration: BoxDecoration(
+                      color: surfaceColor.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      isPh
+                          ? 'Wala pang naitalang nakaraang bill.'
+                          : 'No past billing periods recorded.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: hintColor, fontSize: 14),
+                    ),
                   )
                 else
                   ListView.builder(
@@ -556,19 +1012,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                        decoration: BoxDecoration(
+                          color: surfaceColor.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: textColor.withOpacity(0.05),
+                          ),
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(period['period_name'], style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                Text(
+                                  period['period_name'],
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
-                                Text(isPh ? 'Naitalang halaga' : 'Rate recorded', style: TextStyle(color: hintColor, fontSize: 11)),
+                                Text(
+                                  isPh ? 'Naitalang halaga' : 'Rate recorded',
+                                  style: TextStyle(
+                                    color: hintColor,
+                                    fontSize: 11,
+                                  ),
+                                ),
                               ],
                             ),
-                            Text('₱${period['billing_rate'].toStringAsFixed(2)}', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(
+                              '₱${period['billing_rate'].toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.greenAccent,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -577,11 +1059,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 40),
 
                 // 6. Language & Theme Toggles
-                Text(isPh ? 'WIKA' : 'LANGUAGE', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                Text(
+                  isPh ? 'WIKA' : 'LANGUAGE',
+                  style: TextStyle(
+                    color: hintColor,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
+                  ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: ref.watch(settingsProvider).language,
@@ -589,46 +1086,99 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       dropdownColor: surfaceColor,
                       icon: Icon(Icons.language, color: hintColor),
                       items: [
-                        DropdownMenuItem(value: 'en', child: Text('English', style: TextStyle(color: textColor))),
-                        DropdownMenuItem(value: 'ph', child: Text('Filipino (Tagalog)', style: TextStyle(color: textColor))),
+                        DropdownMenuItem(
+                          value: 'en',
+                          child: Text(
+                            'English',
+                            style: TextStyle(color: textColor),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'ph',
+                          child: Text(
+                            'Filipino (Tagalog)',
+                            style: TextStyle(color: textColor),
+                          ),
+                        ),
                       ],
                       onChanged: (val) {
-                        if (val != null) ref.read(settingsProvider.notifier).setLanguage(val);
+                        if (val != null)
+                          ref.read(settingsProvider.notifier).setLanguage(val);
                       },
                     ),
                   ),
                 ),
                 const SizedBox(height: 40),
 
-                Text(isPh ? 'HITSURA' : 'APPEARANCE', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                Text(
+                  isPh ? 'HITSURA' : 'APPEARANCE',
+                  style: TextStyle(
+                    color: hintColor,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Container(
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
+                  decoration: BoxDecoration(
+                    color: surfaceColor.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: textColor.withOpacity(0.05)),
+                  ),
                   child: _buildSwitchOption(
                     title: isPh ? 'Madilim na Mode' : 'Dark Mode',
-                    icon: ref.watch(settingsProvider).themeMode == ThemeMode.dark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                    value: ref.watch(settingsProvider).themeMode == ThemeMode.dark,
+                    icon:
+                        ref.watch(settingsProvider).themeMode == ThemeMode.dark
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
+                    value:
+                        ref.watch(settingsProvider).themeMode == ThemeMode.dark,
                     textColor: textColor,
-                    onChanged: (isDark) => ref.read(settingsProvider.notifier).toggleTheme(isDark),
+                    onChanged: (isDark) =>
+                        ref.read(settingsProvider.notifier).toggleTheme(isDark),
                   ),
                 ),
                 const SizedBox(height: 40),
 
                 // 7. ADMINISTRATION (Conditional)
                 if (_role == 'admin') ...[
-                  Text(isPh ? 'ADMINISTRASYON' : 'ADMINISTRATION', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                  Text(
+                    isPh ? 'ADMINISTRASYON' : 'ADMINISTRATION',
+                    style: TextStyle(
+                      color: hintColor,
+                      fontSize: 11,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardShell())),
-                      icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
-                      label: Text(isPh ? 'Pumunta sa Admin Panel' : 'Switch to Admin Panel', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AdminDashboardShell(),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.admin_panel_settings,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        isPh
+                            ? 'Pumunta sa Admin Panel'
+                            : 'Switch to Admin Panel',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.adminRed,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -639,10 +1189,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _email == 'Offline Mode' || _email == 'Local Offline Mode' ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen())) : _signOut,
-                    icon: Icon(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? Icons.cloud_upload_outlined : Icons.logout, color: hintColor),
-                    label: Text(_email == 'Offline Mode' || _email == 'Local Offline Mode' ? (isPh ? 'Mag-sign in upang I-sync' : 'Sign in to Sync') : (isPh ? 'Mag-log out' : 'Sign out'), style: TextStyle(color: hintColor, fontSize: 15)),
-                    style: OutlinedButton.styleFrom(side: BorderSide(color: hintColor.withOpacity(0.3)), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    onPressed:
+                        _email == 'Offline Mode' ||
+                            _email == 'Local Offline Mode'
+                        ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SignInScreen(),
+                            ),
+                          )
+                        : _signOut,
+                    icon: Icon(
+                      _email == 'Offline Mode' || _email == 'Local Offline Mode'
+                          ? Icons.cloud_upload_outlined
+                          : Icons.logout,
+                      color: hintColor,
+                    ),
+                    label: Text(
+                      _email == 'Offline Mode' || _email == 'Local Offline Mode'
+                          ? (isPh
+                                ? 'Mag-sign in upang I-sync'
+                                : 'Sign in to Sync')
+                          : (isPh ? 'Mag-log out' : 'Sign out'),
+                      style: TextStyle(color: hintColor, fontSize: 15),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: hintColor.withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -653,7 +1230,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildRadioOption(String title, String value, String description, Color textColor, Color hintColor) {
+  Widget _buildRadioOption(
+    String title,
+    String value,
+    String description,
+    Color textColor,
+    Color hintColor,
+  ) {
     bool isSelected = _householdSize == value;
     return GestureDetector(
       onTap: () => setState(() => _householdSize = value),
@@ -661,19 +1244,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(color: isSelected ? textColor.withOpacity(0.05) : Colors.transparent, borderRadius: BorderRadius.circular(12), border: Border.all(color: isSelected ? AppColors.appYellow.withOpacity(0.3) : Colors.transparent)),
+        decoration: BoxDecoration(
+          color: isSelected ? textColor.withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.appYellow.withOpacity(0.3)
+                : Colors.transparent,
+          ),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: isSelected ? AppColors.appYellow : hintColor, size: 22),
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.appYellow : hintColor,
+              size: 22,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(color: isSelected ? textColor : hintColor, fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? textColor : hintColor,
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(description, style: TextStyle(color: hintColor, fontSize: 11, height: 1.4)),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: hintColor,
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -683,7 +1296,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildSwitchOption({required String title, IconData? icon, required bool value, required Color textColor, required Function(bool) onChanged}) {
+  Widget _buildSwitchOption({
+    required String title,
+    IconData? icon,
+    required bool value,
+    required Color textColor,
+    required Function(bool) onChanged,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -691,11 +1310,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           Row(
             children: [
-              if (icon != null) ...[Icon(icon, color: AppColors.appYellow, size: 20), const SizedBox(width: 12)],
+              if (icon != null) ...[
+                Icon(icon, color: AppColors.appYellow, size: 20),
+                const SizedBox(width: 12),
+              ],
               Text(title, style: TextStyle(color: textColor, fontSize: 14)),
             ],
           ),
-          Switch(value: value, onChanged: onChanged, activeThumbColor: AppColors.appYellow, inactiveThumbColor: textColor.withOpacity(0.5), inactiveTrackColor: textColor.withOpacity(0.1)),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: AppColors.appYellow,
+            inactiveThumbColor: textColor.withOpacity(0.5),
+            inactiveTrackColor: textColor.withOpacity(0.1),
+          ),
         ],
       ),
     );
