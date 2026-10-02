@@ -179,7 +179,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final String periodName = _getPreviousBillingMonth();
 
       final db = await DatabaseHelper.instance.database;
-      
+
       // Update local settings
       await db.update('user_settings', {
         'monthly_budget': budget, 'tariff_rate': tariff, 'household_size': _householdSize,
@@ -314,24 +314,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           const SizedBox(height: 10),
                           CustomTextField(controller: _nameController, hint: 'Full Name', icon: Icons.person_outline),
                           const SizedBox(height: 15),
-                          
-                          // Email Field with Dynamic Icon
-                          TextField(
-                            controller: _emailController,
-                            onChanged: _validateEmail,
-                            style: TextStyle(color: textColor),
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              hintText: 'Email Address',
-                              prefixIcon: Icon(Icons.email_outlined, color: hintColor),
-                              suffixIcon: _emailController.text.isNotEmpty 
-                                  ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
-                                  : null,
-                              filled: true,
-                              fillColor: surfaceColor.withOpacity(0.5),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                            ),
-                          ),
+
+                          // Email Field with Dynamic Validation Check and Error Text
+                                                    TextField(
+                                                      controller: _emailController,
+                                                      onChanged: _validateEmail,
+                                                      style: TextStyle(color: textColor),
+                                                      keyboardType: TextInputType.emailAddress,
+                                                      decoration: InputDecoration(
+                                                        hintText: 'Email Address',
+                                                        prefixIcon: Icon(Icons.email_outlined, color: hintColor),
+                                                        suffixIcon: _emailController.text.isNotEmpty
+                                                            ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
+                                                            : null,
+                                                        // Explicit error text feedback
+                                                        errorText: _emailController.text.isNotEmpty && !_isEmailValid
+                                                            ? 'Please enter a valid email format (e.g., name@email.com)'
+                                                            : null,
+                                                        filled: true,
+                                                        fillColor: surfaceColor.withOpacity(0.5),
+                                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                                      ),
+                                                    ),
                           const SizedBox(height: 15),
 
                           // Password Field

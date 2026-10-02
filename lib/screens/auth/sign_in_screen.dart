@@ -57,8 +57,8 @@ class _SignInScreenState extends State<SignInScreen> {
         actions: [
           FilledButton(
             onPressed: () {
-              Navigator.pop(ctx); 
-              if (onSuccess != null) onSuccess(); 
+              Navigator.pop(ctx);
+              if (onSuccess != null) onSuccess();
             },
             style: FilledButton.styleFrom(
               backgroundColor: isError ? AppColors.adminRed : AppColors.appYellow,
@@ -126,7 +126,7 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final supabase = Supabase.instance.client;
 
-      // Sync local offline power rates 
+      // Sync local offline power rates
       for (var p in periods) {
         await supabase.from('recording_periods').upsert({
           'user_id': userId,
@@ -256,22 +256,27 @@ class _SignInScreenState extends State<SignInScreen> {
 
               Text('Email', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              TextField(
-                controller: _emailController,
-                onChanged: _validateEmail,
-                style: TextStyle(color: textColor),
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'name@email.com',
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  suffixIcon: _emailController.text.isNotEmpty 
-                      ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
-                      : null,
-                  filled: true,
-                  fillColor: surfaceColor.withOpacity(0.5),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
+              // Email Field with Dynamic Validation Check and Error Text
+                            TextField(
+                              controller: _emailController,
+                              onChanged: _validateEmail,
+                              style: TextStyle(color: textColor),
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(
+                                hintText: 'kislap@email.com',
+                                prefixIcon: Icon(Icons.email_outlined, color: hintColor),
+                                suffixIcon: _emailController.text.isNotEmpty
+                                    ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
+                                    : null,
+                                // Provide text error feedback to user
+                                errorText: _emailController.text.isNotEmpty && !_isEmailValid
+                                    ? 'Please enter a valid email format'
+                                    : null,
+                                filled: true,
+                                fillColor: surfaceColor.withOpacity(0.5),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              ),
+                            ),
               const SizedBox(height: 20),
 
               Text('Password', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
