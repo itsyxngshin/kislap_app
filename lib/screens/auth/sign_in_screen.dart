@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sqflite/sqflite.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
+import '../../services/database_helper.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 import '../admin/admin_dashboard_shell.dart';
@@ -20,6 +22,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isEmailValid = false;
 
   @override
   void dispose() {
@@ -28,7 +31,11 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  // --- NEW: Reusable Modal Prompt ---
+  void _validateEmail(String email) {
+    final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+    setState(() => _isEmailValid = emailRegex.hasMatch(email));
+  }
+
   void _showModalPrompt(String title, String message, {bool isError = false, VoidCallback? onSuccess}) {
     showDialog(
       context: context,
@@ -50,8 +57,8 @@ class _SignInScreenState extends State<SignInScreen> {
         actions: [
           FilledButton(
             onPressed: () {
-              Navigator.pop(ctx); // Close dialog
-              if (onSuccess != null) onSuccess(); // Trigger routing if successful
+              Navigator.pop(ctx); 
+              if (onSuccess != null) onSuccess(); 
             },
             style: FilledButton.styleFrom(
               backgroundColor: isError ? AppColors.adminRed : AppColors.appYellow,
@@ -66,23 +73,109 @@ class _SignInScreenState extends State<SignInScreen> {
 
   Future<void> _handleSuccessfulLogin(User? user) async {
     if (user != null) {
-      await SyncService.mergeOfflineDataToCloud(user.id);
-      await SyncService.syncGlobalPresets();
+      final db = await DatabaseHelper.instance.database;
+      final localInventory = await db.query('user_inventory');
+      final localPeriods = await db.query('recording_periods');
 
-      final profileData = await Supabase.instance.client
-          .from('profiles')
-          .select('role_id')
-          .eq('id', user.id)
-          .maybeSingle();
+      if (localInventory.isNotEmpty || localPeriods.isNotEmpty) {
+        if (!mounted) return;
+        _showMergePrompt(user, localInventory, localPeriods);
+      } else {
+        _completeLoginFlow(user.id);
+      }
+    }
+  }
 
-      final int roleId = profileData?['role_id'] as int? ?? 1;
+  void _showMergePrompt(User user, List<Map<String, dynamic>> localInventory, List<Map<String, dynamic>> localPeriods) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Sync Offline Data', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('We found appliances and billing rates saved locally on this device. Do you want to merge them into your cloud account?'),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final db = await DatabaseHelper.instance.database;
+              await db.delete('user_inventory');
+              await db.delete('recording_periods');
+              Navigator.pop(ctx);
+              _completeLoginFlow(user.id);
+            },
+            child: const Text('Discard Local', style: TextStyle(color: Colors.grey)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              await _mergeDataToCloud(user.id, localInventory, localPeriods);
+              setState(() => _isLoading = false);
+              _completeLoginFlow(user.id);
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
+            child: const Text('Merge to Cloud', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
-      if (mounted) {
-        if (roleId == 2) {
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminDashboardShell()), (route) => false);
-        } else {
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
-        }
+  Future<void> _mergeDataToCloud(String userId, List<Map<String, dynamic>> inventory, List<Map<String, dynamic>> periods) async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // Sync local offline power rates 
+      for (var p in periods) {
+        await supabase.from('recording_periods').upsert({
+          'user_id': userId,
+          'period_month': p['period_month'],
+          'period_name': p['period_name'],
+          'start_date': p['start_date'],
+          'end_date': p['end_date'],
+          'billing_rate': p['billing_rate'],
+        }, onConflict: 'user_id, period_month');
+      }
+
+      // Sync local appliances
+      for (var i in inventory) {
+        await supabase.from('appliances').insert({
+          'user_id': userId,
+          'name': i['custom_name'],
+          'watts': i['preset_wattage'],
+          'quantity': i['quantity'],
+          'hours_per_day': i['user_assigned_hours'],
+        });
+      }
+
+      // Sync baseline config
+      final db = await DatabaseHelper.instance.database;
+      final settings = await db.query('user_settings', limit: 1);
+      if (settings.isNotEmpty) {
+        await supabase.from('profiles').update({
+          'tariff_rate': settings.first['tariff_rate'],
+          'monthly_budget': settings.first['monthly_budget'],
+          'household_size': settings.first['household_size'],
+        }).eq('id', userId);
+      }
+    } catch (e) {
+      debugPrint('Merge Error: $e');
+    }
+  }
+
+  Future<void> _completeLoginFlow(String userId) async {
+    await SyncService.mergeOfflineDataToCloud(userId);
+    await SyncService.syncGlobalPresets();
+
+    final profileData = await Supabase.instance.client.from('profiles').select('role_id').eq('id', userId).maybeSingle();
+    final int roleId = profileData?['role_id'] as int? ?? 1;
+
+    if (mounted) {
+      if (roleId == 2) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminDashboardShell()), (route) => false);
+      } else {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
       }
     }
   }
@@ -91,8 +184,8 @@ class _SignInScreenState extends State<SignInScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      _showModalPrompt('Missing Information', 'Please enter both your email and password.', isError: true);
+    if (!_isEmailValid || password.isEmpty) {
+      _showModalPrompt('Invalid Input', 'Please enter a valid email and password.', isError: true);
       return;
     }
 
@@ -104,7 +197,6 @@ class _SignInScreenState extends State<SignInScreen> {
         password: password,
       );
 
-      // Trigger success modal, then route upon clicking OK
       if (mounted) {
         _showModalPrompt(
           'Login Successful',
@@ -143,6 +235,7 @@ class _SignInScreenState extends State<SignInScreen> {
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
+    final surfaceColor = Theme.of(context).colorScheme.surface;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -163,7 +256,22 @@ class _SignInScreenState extends State<SignInScreen> {
 
               Text('Email', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
-              CustomTextField(controller: _emailController, hint: 'name@email.com', icon: Icons.email_outlined),
+              TextField(
+                controller: _emailController,
+                onChanged: _validateEmail,
+                style: TextStyle(color: textColor),
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  hintText: 'name@email.com',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  suffixIcon: _emailController.text.isNotEmpty 
+                      ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
+                      : null,
+                  filled: true,
+                  fillColor: surfaceColor.withOpacity(0.5),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
               const SizedBox(height: 20),
 
               Text('Password', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
@@ -211,7 +319,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
+                  onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
                   child: Text.rich(
                     TextSpan(
                       text: 'New here? ',
