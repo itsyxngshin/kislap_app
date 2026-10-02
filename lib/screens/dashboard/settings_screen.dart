@@ -22,10 +22,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _tariffController = TextEditingController();
   String _householdSize = 'Small';
-  
-  String _fullName = ''; 
+
+  String _fullName = '';
   String _email = '';
-  int _roleId = 1; // THE FIX: 1 = User, 2 = Admin
+  int _roleId = 1;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -67,17 +67,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _email = 'Local Offline Mode';
     } else {
       _email = user.email ?? '';
-      
+
       String fallbackName = user.userMetadata?['full_name'] as String? ?? '';
       if (fallbackName.isEmpty) fallbackName = _email.split('@').first;
       if (fallbackName.isEmpty) fallbackName = 'User';
       _fullName = fallbackName;
-      
+
       try {
-        // THE FIX: Fetching 'role_id' instead of 'role'
         final profileData = await Supabase.instance.client
             .from('profiles')
-            .select('full_name, monthly_budget, household_size, role_id') 
+            .select('full_name, monthly_budget, household_size, role_id')
             .eq('id', user.id)
             .maybeSingle();
 
@@ -85,8 +84,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (profileData['full_name'] != null && profileData['full_name'].toString().trim().isNotEmpty) {
             _fullName = profileData['full_name'];
           }
-          
-          _roleId = profileData['role_id'] as int? ?? 1; // Check integer role
+
+          _roleId = profileData['role_id'] as int? ?? 1;
 
           if (profileData['monthly_budget'] != null) {
              await db.update('user_settings', {
@@ -162,7 +161,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       await db.update('user_settings', {
         'monthly_budget': budget,
-        'tariff_rate': tariff, 
+        'tariff_rate': tariff,
         'household_size': _householdSize,
         'language': isPh ? 'ph' : 'en',
         'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
@@ -175,7 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         prevMonth = 12;
         prevYear--;
       }
-      
+
       final String paddedMonth = prevMonth.toString().padLeft(2, '0');
       final String periodMonth = '$prevYear-$paddedMonth-01';
       final int lastDay = DateTime(prevYear, prevMonth + 1, 0).day;
@@ -191,24 +190,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       if (user != null) {
-        try {
-          await Supabase.instance.client.from('profiles').update({
-            'monthly_budget': budget,
-            'tariff_rate': tariff,
-            'household_size': _householdSize,
-          }).eq('id', user.id);
+        // THE FIX: Removed the silent try/catch wrapper and purged 'tariff_rate' from the profile payload
+        await Supabase.instance.client.from('profiles').update({
+          'monthly_budget': budget,
+          'household_size': _householdSize,
+        }).eq('id', user.id);
 
-          await Supabase.instance.client.from('recording_periods').upsert({
-            'user_id': user.id,
-            'period_month': periodMonth,
-            'period_name': periodName,
-            'start_date': periodMonth,
-            'end_date': endDate,
-            'billing_rate': tariff,
-          }, onConflict: 'user_id, period_month');
-        } catch (e) {
-          debugPrint('Failed to sync settings to cloud: $e');
-        }
+        await Supabase.instance.client.from('recording_periods').upsert({
+          'user_id': user.id,
+          'period_month': periodMonth,
+          'period_name': periodName,
+          'start_date': periodMonth,
+          'end_date': endDate,
+          'billing_rate': tariff,
+        }, onConflict: 'user_id, period_month');
       }
 
       if (mounted) ref.read(inventoryProvider.notifier).build();
@@ -227,7 +222,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _signOut() async {
     setState(() => _isLoading = true);
     await Supabase.instance.client.auth.signOut();
-    
+
     try {
       final db = await DatabaseHelper.instance.database;
       await db.delete('user_inventory');
@@ -330,25 +325,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                           final user = Supabase.instance.client.auth.currentUser;
                           if (user != null) {
-                            try {
-                              await Supabase.instance.client.from('recording_periods').upsert({
-                                'user_id': user.id,
-                                'period_month': periodMonth,
-                                'period_name': '$selectedMonth $selectedYear',
-                                'start_date': periodMonth,
-                                'end_date': '$selectedYear-$paddedMonth-$lastDay',
-                                'billing_rate': rate,
-                              }, onConflict: 'user_id, period_month');
-                            } catch (e) {
-                              debugPrint('Supabase insert failed: $e');
-                            }
+                            await Supabase.instance.client.from('recording_periods').upsert({
+                              'user_id': user.id,
+                              'period_month': periodMonth,
+                              'period_name': '$selectedMonth $selectedYear',
+                              'start_date': periodMonth,
+                              'end_date': '$selectedYear-$paddedMonth-$lastDay',
+                              'billing_rate': rate,
+                            }, onConflict: 'user_id, period_month');
                           }
 
                           if (mounted) {
                             Navigator.pop(context);
                             _loadPeriods();
                           }
-                        } catch (e) {}
+                        } catch (e) {
+                          debugPrint('Supabase insert failed: $e');
+                        }
                       },
                       style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       child: Text(isPh ? 'I-save' : 'Save Period', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -465,10 +458,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
                         decoration: InputDecoration(
                           hintText: '0.00',
-                          prefixText: '₱ ', 
-                          prefixStyle: TextStyle(color: textColor, fontSize: 18), 
-                          filled: true, 
-                          fillColor: surfaceColor, 
+                          prefixText: '₱ ',
+                          prefixStyle: TextStyle(color: textColor, fontSize: 18),
+                          filled: true,
+                          fillColor: surfaceColor,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)
                         ),
                       ),
@@ -491,11 +484,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: TextStyle(color: textColor, fontSize: 16),
                         decoration: InputDecoration(
                           hintText: '0.00',
-                          prefixText: '₱ ', 
-                          suffixText: '/ kWh', 
-                          suffixStyle: TextStyle(color: hintColor), 
-                          filled: true, 
-                          fillColor: surfaceColor, 
+                          prefixText: '₱ ',
+                          suffixText: '/ kWh',
+                          suffixStyle: TextStyle(color: hintColor),
+                          filled: true,
+                          fillColor: surfaceColor,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)
                         ),
                       ),
