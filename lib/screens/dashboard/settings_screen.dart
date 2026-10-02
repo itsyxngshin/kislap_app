@@ -9,8 +9,6 @@ import '../../services/database_helper.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
-
-// NEW: Import the Admin Shell
 import '../admin/admin_dashboard_shell.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -24,9 +22,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _tariffController = TextEditingController();
   String _householdSize = 'Small';
-  String _fullName = 'Loading...';
+
+  // THE FIX: Removed 'Loading...' default to prevent UI text freezing
+  String _fullName = '';
   String _email = '';
-  String _role = 'user'; // NEW: Track the user role
+  String _role = 'user';
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -62,25 +62,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _email = 'Local Offline Mode';
     } else {
       _email = user.email ?? '';
+
+      // 1. Safe Instant Fallback: Prevents blank spaces while database loads
+      String fallbackName = user.userMetadata?['full_name'] as String? ?? '';
+      if (fallbackName.isEmpty) fallbackName = _email.split('@').first;
+      if (fallbackName.isEmpty) fallbackName = 'User';
+      _fullName = fallbackName;
+
       try {
-        // NEW: Included 'role' in the Supabase query
+        // 2. Authoritative Source: Fetch strictly from the 'profiles' table
         final profileData = await Supabase.instance.client
             .from('profiles')
             .select('full_name, monthly_budget, tariff_rate, household_size, role')
             .eq('id', user.id)
             .maybeSingle();
 
-        _fullName = profileData?['full_name'] ?? 'User';
-        _role = profileData?['role'] ?? 'user'; // Assign role
+        if (profileData != null) {
+          // Overwrite fallback with verified database profile name
+          if (profileData['full_name'] != null && profileData['full_name'].toString().trim().isNotEmpty) {
+            _fullName = profileData['full_name'];
+          }
 
-        if (profileData != null && profileData['monthly_budget'] != null) {
-           await db.update('user_settings', {
-            'monthly_budget': (profileData['monthly_budget'] as num).toDouble(),
-            'tariff_rate': (profileData['tariff_rate'] as num).toDouble(),
-            'household_size': profileData['household_size'] as String? ?? 'Small',
-            'language': ref.read(settingsProvider).language,
-            'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
-          }, where: 'id = 1');
+          _role = profileData['role'] ?? 'user';
+
+          if (profileData['monthly_budget'] != null) {
+             await db.update('user_settings', {
+              'monthly_budget': (profileData['monthly_budget'] as num).toDouble(),
+              'tariff_rate': (profileData['tariff_rate'] as num).toDouble(),
+              'household_size': profileData['household_size'] as String? ?? 'Small',
+              'language': ref.read(settingsProvider).language,
+              'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
+            }, where: 'id = 1');
+          }
         }
 
         final cloudPeriods = await Supabase.instance.client
@@ -140,7 +153,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final db = await DatabaseHelper.instance.database;
       final user = Supabase.instance.client.auth.currentUser;
 
-      // 1. Save settings locally to SQLite
       await db.update('user_settings', {
         'monthly_budget': budget,
         'tariff_rate': tariff,
@@ -149,7 +161,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
       }, where: 'id = 1');
 
-      // 2. Generate current month parameters for the Recording Period
       final now = DateTime.now();
       final String paddedMonth = now.month.toString().padLeft(2, '0');
       final String periodMonth = '${now.year}-$paddedMonth-01';
@@ -157,7 +168,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final String endDate = '${now.year}-$paddedMonth-$lastDay';
       final String periodName = '${_monthsEn[now.month - 1]} ${now.year}';
 
-      // 3. Update or Insert Current Period locally in SQLite
       final localExisting = await db.query('recording_periods', where: 'period_month = ?', whereArgs: [periodMonth]);
       if (localExisting.isNotEmpty) {
         await db.update('recording_periods', {'billing_rate': tariff}, where: 'period_month = ?', whereArgs: [periodMonth]);
@@ -171,17 +181,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         });
       }
 
-      // 4. Push updates to Supabase (Profiles & Recording Periods)
       if (user != null) {
         try {
-          // Sync profile settings
           await Supabase.instance.client.from('profiles').update({
             'monthly_budget': budget,
             'tariff_rate': tariff,
             'household_size': _householdSize,
           }).eq('id', user.id);
 
-          // Sync current month's recording period
           final cloudExisting = await Supabase.instance.client
               .from('recording_periods')
               .select('id')
@@ -208,7 +215,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       }
 
-      // Re-trigger inventory optimization and reload UI periods
       if (mounted) ref.read(inventoryProvider.notifier).build();
       await _loadPeriods();
 
@@ -307,7 +313,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         try {
                           final db = await DatabaseHelper.instance.database;
 
-                          // Check if period exists locally to avoid duplicates
                           final localExisting = await db.query('recording_periods', where: 'period_month = ?', whereArgs: [periodMonth]);
                           if (localExisting.isNotEmpty) {
                             await db.update('recording_periods', {'billing_rate': rate}, where: 'period_month = ?', whereArgs: [periodMonth]);
