@@ -88,12 +88,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _roleId = profileData['role_id'] as int? ?? 1;
 
           if (profileData['monthly_budget'] != null) {
-             await db.update('user_settings', {
+            // THE FIX: Directly populate the UI controllers to guarantee reflection
+            _budgetController.text = (profileData['monthly_budget'] as num).toString();
+            _householdSize = profileData['household_size'] as String? ?? 'Small';
+             
+            // THE FIX: Safely UPSERT into local SQLite to rebuild the wiped row
+            final existingSettings = await db.query('user_settings', where: 'id = 1');
+            final Map<String, dynamic> settingsData = {
               'monthly_budget': (profileData['monthly_budget'] as num).toDouble(),
-              'household_size': profileData['household_size'] as String? ?? 'Small',
+              'household_size': _householdSize,
               'language': ref.read(settingsProvider).language,
               'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
-            }, where: 'id = 1');
+            };
+
+            if (existingSettings.isEmpty) {
+              settingsData['id'] = 1;
+              settingsData['tariff_rate'] = 0.0;
+              await db.insert('user_settings', settingsData);
+            } else {
+              await db.update('user_settings', settingsData, where: 'id = 1');
+            }
           }
         }
 
@@ -123,19 +137,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
 
     try {
-      final settings = await db.query('user_settings', limit: 1);
-      if (settings.isNotEmpty) {
-        final data = settings.first;
-        _budgetController.text = (data['monthly_budget'] as num).toString();
-        _householdSize = data['household_size'] as String? ?? 'Small';
-      }
-
+      // Still strictly query periods for the Tariff rate fallback
       final periodData = await db.query('recording_periods', orderBy: 'period_month DESC');
       if (periodData.isNotEmpty) {
         _tariffController.text = (periodData.first['billing_rate'] as num).toString();
         if (mounted) _periods = periodData;
-      } else if (settings.isNotEmpty) {
-        _tariffController.text = (settings.first['tariff_rate'] as num).toString();
+      } else {
+        final settings = await db.query('user_settings', limit: 1);
+        if (settings.isNotEmpty) {
+          _tariffController.text = (settings.first['tariff_rate'] as num).toString();
+        }
       }
     } catch (_) {}
 
@@ -159,13 +170,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       final isPh = ref.read(settingsProvider).language == 'ph';
 
-      await db.update('user_settings', {
+      // THE FIX: Upsert logic when saving Configuration as well
+      final Map<String, dynamic> settingsData = {
         'monthly_budget': budget,
         'tariff_rate': tariff,
         'household_size': _householdSize,
         'language': isPh ? 'ph' : 'en',
         'theme_mode': ref.read(settingsProvider).themeMode == ThemeMode.dark ? 'dark' : 'light',
-      }, where: 'id = 1');
+      };
+
+      final localExisting = await db.query('user_settings', where: 'id = 1');
+      if (localExisting.isEmpty) {
+        settingsData['id'] = 1;
+        await db.insert('user_settings', settingsData);
+      } else {
+        await db.update('user_settings', settingsData, where: 'id = 1');
+      }
 
       final now = DateTime.now();
       int prevMonth = now.month - 1;
@@ -190,7 +210,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       if (user != null) {
-        // THE FIX: Removed the silent try/catch wrapper and purged 'tariff_rate' from the profile payload
         await Supabase.instance.client.from('profiles').update({
           'monthly_budget': budget,
           'household_size': _householdSize,
