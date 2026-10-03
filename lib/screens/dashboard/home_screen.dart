@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- Added for Cloud Fallback
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../../providers/navigation_provider.dart'; // <-- Navigation Provider
+import '../../providers/navigation_provider.dart'; 
 import '../../services/database_helper.dart';
 import 'add_device_screen.dart';
 import '../../services/export_service.dart';
@@ -28,25 +29,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _fetchLocalSettings();
   }
 
+  // --- THE FIX: Robust Local/Cloud Fetch Engine ---
   Future<void> _fetchLocalSettings() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      final settings = await db.query('user_settings', limit: 1);
-      if (settings.isNotEmpty && mounted) {
-        setState(() => _targetBudget = (settings.first['monthly_budget'] as num).toDouble());
-      }
-      final now = DateTime.now();
-      int prevMonth = now.month == 1 ? 12 : now.month - 1;
-      int prevYear = now.month == 1 ? now.year - 1 : now.year;
-      String targetPeriod = '$prevYear-${prevMonth.toString().padLeft(2, '0')}-01';
+      final user = Supabase.instance.client.auth.currentUser;
 
-      final pastBills = await db.query('recording_periods', where: 'period_month = ?', whereArgs: [targetPeriod], limit: 1);
-      if (pastBills.isNotEmpty && mounted) {
-        setState(() => _activeRate = (pastBills.first['billing_rate'] as num).toDouble());
-      } else if (settings.isNotEmpty && mounted) {
+      final settings = await db.query('user_settings', limit: 1);
+      double localBudget = 0.0;
+      double localRate = 0.0;
+
+      if (settings.isNotEmpty) {
+        localBudget = (settings.first['monthly_budget'] as num).toDouble();
+        localRate = (settings.first['tariff_rate'] as num).toDouble();
+      }
+
+      final pastBills = await db.query('recording_periods', orderBy: 'period_month DESC', limit: 1);
+      if (pastBills.isNotEmpty) {
+        localRate = (pastBills.first['billing_rate'] as num).toDouble();
+      }
+
+      if (localBudget <= 0 && user != null) {
+        final profile = await Supabase.instance.client.from('profiles').select('monthly_budget').eq('id', user.id).maybeSingle();
+        if (profile != null && profile['monthly_budget'] != null) {
+          localBudget = (profile['monthly_budget'] as num).toDouble();
+          
+          final existing = await db.query('user_settings', where: 'id = 1');
+          if (existing.isEmpty) {
+            await db.insert('user_settings', {'id': 1, 'monthly_budget': localBudget, 'tariff_rate': 0.0});
+          } else {
+            await db.update('user_settings', {'monthly_budget': localBudget}, where: 'id = 1');
+          }
+        }
+
+        final periods = await Supabase.instance.client.from('recording_periods').select('billing_rate').eq('user_id', user.id).order('period_month', ascending: false).limit(1);
+        if (periods.isNotEmpty) {
+          localRate = (periods.first['billing_rate'] as num).toDouble();
+        }
+      }
+
+      if (mounted) {
         setState(() {
-          _activeRate = (settings.first['tariff_rate'] as num).toDouble();
-          if (_activeRate <= 0) _activeRate = 12.35;
+          _targetBudget = localBudget;
+          _activeRate = localRate > 0 ? localRate : 12.35;
         });
       }
     } catch (_) {}
@@ -74,6 +99,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // THE FIX: Listen to Tab Changes. If user taps Home (Index 0), refresh the budget!
+    ref.listen(dashboardTabProvider, (previous, next) {
+      if (next == 0) {
+        _fetchLocalSettings();
+      }
+    });
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
@@ -135,19 +167,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _buildQuickAction(Icons.add, isPh ? 'Magdagdag' : 'Add item', isPrimary: true, isDark: isDark, hintColor: hintColor, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddDeviceScreen()))),
-
-                    // THE FIX: Switch tabs using Riverpod instead of Navigator.push
                     _buildQuickAction(
                       Icons.show_chart_rounded,
                       isPh ? 'Pagsusuri' : 'Analysis',
                       isDark: isDark, hintColor: hintColor,
-                      onTap: () => ref.read(dashboardTabProvider.notifier).state = 2, // Switches to Analysis Tab
+                      onTap: () => ref.read(dashboardTabProvider.notifier).state = 2,
                     ),
                     _buildQuickAction(
                       Icons.settings_outlined,
                       isPh ? 'Setting' : 'Configuration',
                       isDark: isDark, hintColor: hintColor,
-                      onTap: () => ref.read(dashboardTabProvider.notifier).state = 4, // Switches to Settings Tab
+                      onTap: () => ref.read(dashboardTabProvider.notifier).state = 4, 
                     ),
                     _buildQuickAction(Icons.ios_share_rounded, isPh ? 'I-export' : 'Export', isDark: isDark, hintColor: hintColor, onTap: () async {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isPh ? 'Binubuo ang Excel file...' : 'Generating Excel file...')));
@@ -197,7 +227,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // --- STUNNING TIME OF DAY HEADER ---
   Widget _buildTimeOfDayHeader(bool isPh, Color textColor, Color hintColor) {
     final hour = DateTime.now().hour;
     String greeting;
@@ -242,7 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildSummaryCard({required double optimizedMonthlyCost, required bool isDark, required bool isPh, required Color textColor, required Color hintColor}) {
-    final bool systemBreached = optimizedMonthlyCost > _targetBudget;
+    final bool systemBreached = _targetBudget > 0 && optimizedMonthlyCost > _targetBudget;
     final Color statusColor = systemBreached ? (isDark ? AppColors.adminRed : Colors.red.shade700) : (isDark ? Colors.greenAccent : Colors.green.shade700);
     double progress = _targetBudget > 0 ? (optimizedMonthlyCost / _targetBudget).clamp(0.0, 1.0) : 0.0;
 
@@ -379,4 +408,4 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
-}
+}   

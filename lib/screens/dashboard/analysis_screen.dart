@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- Added for Cloud Fallback
 import '../../theme/app_colors.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/navigation_provider.dart'; // <-- Added to track tab changes
 import '../../services/database_helper.dart';
 
 enum TimeView { daily, weekly, monthly }
@@ -28,30 +30,52 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     _loadSettings();
   }
 
+  // --- THE FIX: Robust Local/Cloud Fetch Engine ---
   Future<void> _loadSettings() async {
     try {
       final db = await DatabaseHelper.instance.database;
+      final user = Supabase.instance.client.auth.currentUser;
 
+      // 1. Read Local SQLite First (Fast)
       final settings = await db.query('user_settings', limit: 1);
-      if (settings.isNotEmpty && mounted) {
-        setState(() {
-          _targetBudget = (settings.first['monthly_budget'] as num).toDouble();
-        });
+      double localBudget = 0.0;
+      double localRate = 0.0;
+
+      if (settings.isNotEmpty) {
+        localBudget = (settings.first['monthly_budget'] as num).toDouble();
+        localRate = (settings.first['tariff_rate'] as num).toDouble();
       }
 
-      final pastBills = await db.query(
-        'recording_periods',
-        orderBy: 'period_month DESC',
-        limit: 1,
-      );
-      if (pastBills.isNotEmpty && mounted) {
+      final pastBills = await db.query('recording_periods', orderBy: 'period_month DESC', limit: 1);
+      if (pastBills.isNotEmpty) {
+        localRate = (pastBills.first['billing_rate'] as num).toDouble();
+      }
+
+      // 2. Cloud Fallback: If SQLite was wiped/empty during login, pull directly from Supabase
+      if (localBudget <= 0 && user != null) {
+        final profile = await Supabase.instance.client.from('profiles').select('monthly_budget').eq('id', user.id).maybeSingle();
+        if (profile != null && profile['monthly_budget'] != null) {
+          localBudget = (profile['monthly_budget'] as num).toDouble();
+          
+          // Re-cache it locally so we don't have to keep downloading it
+          final existing = await db.query('user_settings', where: 'id = 1');
+          if (existing.isEmpty) {
+            await db.insert('user_settings', {'id': 1, 'monthly_budget': localBudget, 'tariff_rate': 0.0});
+          } else {
+            await db.update('user_settings', {'monthly_budget': localBudget}, where: 'id = 1');
+          }
+        }
+
+        final periods = await Supabase.instance.client.from('recording_periods').select('billing_rate').eq('user_id', user.id).order('period_month', ascending: false).limit(1);
+        if (periods.isNotEmpty) {
+          localRate = (periods.first['billing_rate'] as num).toDouble();
+        }
+      }
+
+      if (mounted) {
         setState(() {
-          _activeRate = (pastBills.first['billing_rate'] as num).toDouble();
-        });
-      } else if (settings.isNotEmpty && mounted) {
-        setState(() {
-          _activeRate = (settings.first['tariff_rate'] as num).toDouble();
-          if (_activeRate <= 0) _activeRate = 12.35;
+          _targetBudget = localBudget;
+          _activeRate = localRate > 0 ? localRate : 12.35;
         });
       }
     } catch (_) {}
@@ -78,7 +102,6 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     return Icons.electrical_services;
   }
 
-  // --- STUNNING TIME OF DAY HEADER ---
   Widget _buildTimeOfDayHeader(bool isPh, Color textColor, Color hintColor) {
     final hour = DateTime.now().hour;
     String greeting;
@@ -124,25 +147,25 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- LIGHT MODE ADAPTIVE LOGIC ---
+    // THE FIX: Listen to Tab Changes. If the user taps the Analysis Tab (Index 2), silently refresh the budget!
+    ref.listen(dashboardTabProvider, (previous, next) {
+      if (next == 2) {
+        _loadSettings();
+      }
+    });
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
-    // Premium adaptive colors depending on Light/Dark theme
     final Color successColor = isDark ? Colors.greenAccent : Colors.green.shade700;
     final Color warningColor = isDark ? AppColors.adminRed : Colors.red.shade700;
     final Color neutralColor = isDark ? AppColors.appYellow : Colors.orange.shade800;
 
     if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.appYellow),
-        ),
-      );
+      return const Scaffold(backgroundColor: Colors.transparent, body: Center(child: CircularProgressIndicator(color: AppColors.appYellow)));
     }
 
     final devices = ref.watch(inventoryProvider);
@@ -174,7 +197,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final double optimizedMonthlyCost = optimizedMonthlyKwh * _activeRate;
 
     final double monthlySavings = originalMonthlyCost - optimizedMonthlyCost;
-    final bool isOverBudget = optimizedMonthlyCost > _targetBudget;
+    
+    // This is now accurate because _targetBudget is safely managed
+    final bool isOverBudget = _targetBudget > 0 && optimizedMonthlyCost > _targetBudget;
     final bool isSaving = monthlySavings > 0;
 
     String trendTitle = '';
@@ -210,12 +235,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 30,
-            bottom: 120,
-          ),
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -224,12 +244,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
               Text(
                 isPh ? 'PAGSUSURI NG TREND' : 'TREND ANALYSIS',
-                style: TextStyle(
-                  color: hintColor,
-                  fontSize: 11,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Container(
@@ -247,14 +262,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         Icon(trendIcon, color: trendColor, size: 28),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            trendTitle,
-                            style: TextStyle(
-                              color: trendColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                          child: Text(trendTitle, style: TextStyle(color: trendColor, fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                       ],
                     ),
@@ -263,9 +271,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       trendDesc,
                       style: TextStyle(
                         color: isDark ? textColor : trendColor.withOpacity(0.9),
-                        fontSize: 13,
-                        height: 1.4,
-                        fontWeight: isDark ? FontWeight.normal : FontWeight.w500,
+                        fontSize: 13, height: 1.4, fontWeight: isDark ? FontWeight.normal : FontWeight.w500,
                       ),
                     ),
                   ],
@@ -275,12 +281,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
               Text(
                 isPh ? 'KABUUANG KONSUMO' : 'HOUSEHOLD TOTALS',
-                style: TextStyle(
-                  color: hintColor,
-                  fontSize: 11,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Container(
@@ -293,30 +294,11 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildSummaryRow(
-                      isPh ? 'Araw-araw' : 'Daily',
-                      optimizedDailyKwh,
-                      optimizedDailyCost,
-                      textColor,
-                      hintColor,
-                    ),
+                    _buildSummaryRow(isPh ? 'Araw-araw' : 'Daily', optimizedDailyKwh, optimizedDailyCost, textColor, hintColor),
                     Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
-                    _buildSummaryRow(
-                      isPh ? 'Lingguhan' : 'Weekly',
-                      optimizedWeeklyKwh,
-                      optimizedWeeklyCost,
-                      textColor,
-                      hintColor,
-                    ),
+                    _buildSummaryRow(isPh ? 'Lingguhan' : 'Weekly', optimizedWeeklyKwh, optimizedWeeklyCost, textColor, hintColor),
                     Divider(color: isDark ? Colors.white12 : Colors.black12, height: 24),
-                    _buildSummaryRow(
-                      isPh ? 'Buwanan' : 'Monthly',
-                      optimizedMonthlyKwh,
-                      optimizedMonthlyCost,
-                      neutralColor,
-                      hintColor,
-                      isBold: true,
-                    ),
+                    _buildSummaryRow(isPh ? 'Buwanan' : 'Monthly', optimizedMonthlyKwh, optimizedMonthlyCost, neutralColor, hintColor, isBold: true),
                   ],
                 ),
               ),
@@ -329,9 +311,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   decoration: BoxDecoration(
                     color: isDark ? neutralColor.withOpacity(0.05) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isDark ? neutralColor.withOpacity(0.3) : Colors.black.withOpacity(0.05),
-                    ),
+                    border: Border.all(color: isDark ? neutralColor.withOpacity(0.3) : Colors.black.withOpacity(0.05)),
                     boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                   ),
                   child: Column(
@@ -341,31 +321,15 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         children: [
                           Row(
                             children: [
-                              Icon(
-                                Icons.calculate_outlined,
-                                color: neutralColor,
-                                size: 22,
-                              ),
+                              Icon(Icons.calculate_outlined, color: neutralColor, size: 22),
                               const SizedBox(width: 12),
                               Text(
-                                isPh
-                                    ? 'PAANO KINAKALKULA NG KISLAP'
-                                    : 'HOW KISLAP COMPUTES',
-                                style: TextStyle(
-                                  color: neutralColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
+                                isPh ? 'PAANO KINAKALKULA NG KISLAP' : 'HOW KISLAP COMPUTES',
+                                style: TextStyle(color: neutralColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.0),
                               ),
                             ],
                           ),
-                          Icon(
-                            _showFormulas
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                            color: hintColor,
-                          ),
+                          Icon(_showFormulas ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: hintColor),
                         ],
                       ),
                       if (_showFormulas) ...[
@@ -374,40 +338,20 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         const SizedBox(height: 16),
                         _buildMathRow(
                           isPh ? '1. Kuryente (kWh)' : '1. Consumption (kWh)',
-                          isPh
-                              ? 'Paano kinukuha ang pang-araw-araw na konsumo:'
-                              : 'How daily power usage is determined:',
-                          '(Wattage × Quantity ÷ 1000) × Hours',
-                          textColor,
-                          hintColor,
-                          isDark,
-                          successColor,
+                          isPh ? 'Paano kinukuha ang pang-araw-araw na konsumo:' : 'How daily power usage is determined:',
+                          '(Wattage × Quantity ÷ 1000) × Hours', textColor, hintColor, isDark, successColor,
                         ),
                         const SizedBox(height: 16),
                         _buildMathRow(
-                          isPh
-                              ? '2. Optimization (Pagbawas)'
-                              : '2. Optimization Engine',
-                          isPh
-                              ? 'Kung lampas sa budget, binabawasan nang pantay-pantay ang oras ng mga naka-unlock na gamit. Ang mga naka-lock (🔒) ay hindi ginagalaw.'
-                              : 'If over budget, unlocked items are reduced proportionally to fit the financial limit. Locked items (🔒) are never touched.',
-                          'Remaining Budget ÷ Unlocked kWh',
-                          textColor,
-                          hintColor,
-                          isDark,
-                          successColor,
+                          isPh ? '2. Optimization (Pagbawas)' : '2. Optimization Engine',
+                          isPh ? 'Kung lampas sa budget, binabawasan nang pantay-pantay ang oras ng mga naka-unlock na gamit. Ang mga naka-lock (🔒) ay hindi ginagalaw.' : 'If over budget, unlocked items are reduced proportionally to fit the financial limit. Locked items (🔒) are never touched.',
+                          'Remaining Budget ÷ Unlocked kWh', textColor, hintColor, isDark, successColor,
                         ),
                         const SizedBox(height: 16),
                         _buildMathRow(
                           isPh ? '3. Est. Bayad (Cost)' : '3. Estimated Cost',
-                          isPh
-                              ? 'Pinararami ang konsumo sa halaga ng kuryente sa inyong rehiyon.'
-                              : 'Multiplying the total power used by your local grid utility rate.',
-                          'Total kWh × Tariff Rate (₱/kWh)',
-                          textColor,
-                          hintColor,
-                          isDark,
-                          successColor,
+                          isPh ? 'Pinararami ang konsumo sa halaga ng kuryente sa inyong rehiyon.' : 'Multiplying the total power used by your local grid utility rate.',
+                          'Total kWh × Tariff Rate (₱/kWh)', textColor, hintColor, isDark, successColor,
                         ),
                       ],
                     ],
@@ -421,39 +365,16 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 children: [
                   Text(
                     isPh ? 'DETALYENG GASTUSIN' : 'APPLIANCE BREAKDOWN',
-                    style: TextStyle(
-                      color: hintColor,
-                      fontSize: 11,
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold),
                   ),
                   PopupMenuButton<String>(
                     icon: Icon(Icons.sort, color: hintColor, size: 20),
                     color: isDark ? Colors.grey.shade900 : Colors.white,
                     onSelected: (val) => setState(() => _sortOrder = val),
                     itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'Highest kWh',
-                        child: Text(
-                          isPh ? 'Pinakamataas na kWh' : 'Highest kWh',
-                          style: TextStyle(color: textColor, fontSize: 13),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'Lowest kWh',
-                        child: Text(
-                          isPh ? 'Pinakamababang kWh' : 'Lowest kWh',
-                          style: TextStyle(color: textColor, fontSize: 13),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'Name (A-Z)',
-                        child: Text(
-                          isPh ? 'Pangalan (A-Z)' : 'Name (A-Z)',
-                          style: TextStyle(color: textColor, fontSize: 13),
-                        ),
-                      ),
+                      PopupMenuItem(value: 'Highest kWh', child: Text(isPh ? 'Pinakamataas na kWh' : 'Highest kWh', style: TextStyle(color: textColor, fontSize: 13))),
+                      PopupMenuItem(value: 'Lowest kWh', child: Text(isPh ? 'Pinakamababang kWh' : 'Lowest kWh', style: TextStyle(color: textColor, fontSize: 13))),
+                      PopupMenuItem(value: 'Name (A-Z)', child: Text(isPh ? 'Pangalan (A-Z)' : 'Name (A-Z)', style: TextStyle(color: textColor, fontSize: 13))),
                     ],
                   ),
                 ],
@@ -461,14 +382,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               const SizedBox(height: 10),
 
               ...sortedDevices.map((device) {
-                final bool isReduced =
-                    device.adjustedHours < device.userAssignedHours;
-                final Color statusColor = device.isLocked
-                    ? neutralColor
-                    : (isReduced ? Colors.orange : successColor);
+                final bool isReduced = device.adjustedHours < device.userAssignedHours;
+                final Color statusColor = device.isLocked ? neutralColor : (isReduced ? Colors.orange : successColor);
 
-                final double devKw =
-                    (device.presetWattage * device.quantity) / 1000;
+                final double devKw = (device.presetWattage * device.quantity) / 1000;
                 final double devDailyKwh = devKw * device.adjustedHours;
                 final double devWeeklyKwh = devDailyKwh * 7;
                 final double devMonthlyKwh = devDailyKwh * 30;
@@ -479,11 +396,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   decoration: BoxDecoration(
                     color: isDark ? surfaceColor.withOpacity(0.4) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: device.isLocked
-                          ? neutralColor.withOpacity(0.4)
-                          : (isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
-                    ),
+                    border: Border.all(color: device.isLocked ? neutralColor.withOpacity(0.4) : (isDark ? Colors.white12 : Colors.black.withOpacity(0.05))),
                     boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                   ),
                   child: Column(
@@ -493,37 +406,18 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _getApplianceIcon(device.customName),
-                              color: statusColor,
-                              size: 20,
-                            ),
+                            decoration: BoxDecoration(color: statusColor.withOpacity(0.1), shape: BoxShape.circle),
+                            child: Icon(_getApplianceIcon(device.customName), color: statusColor, size: 20),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text('${device.customName} (x${device.quantity})', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 15)),
                                 Text(
-                                  '${device.customName} (x${device.quantity})',
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                Text(
-                                  isPh
-                                      ? 'Lakas: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}'
-                                      : 'Power: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}',
-                                  style: TextStyle(
-                                    color: hintColor,
-                                    fontSize: 11,
-                                  ),
+                                  isPh ? 'Lakas: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}' : 'Power: ${device.presetWattage.toStringAsFixed(0)}W  |  Target: ${_formatTime(device.userAssignedHours)}',
+                                  style: TextStyle(color: hintColor, fontSize: 11),
                                 ),
                               ],
                             ),
@@ -531,27 +425,8 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                _formatTime(device.adjustedHours),
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                device.isLocked
-                                    ? (isPh ? 'Naka-lock' : 'Locked')
-                                    : (isReduced
-                                          ? (isPh ? 'Binawasan' : 'Reduced')
-                                          : (isPh
-                                                ? 'Na-optimize'
-                                                : 'Optimized')),
-                                style: TextStyle(
-                                  color: hintColor,
-                                  fontSize: 10,
-                                ),
-                              ),
+                              Text(_formatTime(device.adjustedHours), style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(device.isLocked ? (isPh ? 'Naka-lock' : 'Locked') : (isReduced ? (isPh ? 'Binawasan' : 'Reduced') : (isPh ? 'Na-optimize' : 'Optimized')), style: TextStyle(color: hintColor, fontSize: 10)),
                             ],
                           ),
                         ],
@@ -559,37 +434,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.black12 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        decoration: BoxDecoration(color: isDark ? Colors.black12 : Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildStatCol(
-                              isPh ? 'Arawan' : 'Daily',
-                              devDailyKwh,
-                              devDailyKwh * _activeRate,
-                              textColor,
-                              hintColor,
-                              successColor,
-                            ),
-                            _buildStatCol(
-                              isPh ? 'Lingguhan' : 'Weekly',
-                              devWeeklyKwh,
-                              devWeeklyKwh * _activeRate,
-                              textColor,
-                              hintColor,
-                              successColor,
-                            ),
-                            _buildStatCol(
-                              isPh ? 'Buwanan' : 'Monthly',
-                              devMonthlyKwh,
-                              devMonthlyKwh * _activeRate,
-                              textColor,
-                              hintColor,
-                              successColor,
-                            ),
+                            _buildStatCol(isPh ? 'Arawan' : 'Daily', devDailyKwh, devDailyKwh * _activeRate, textColor, hintColor, successColor),
+                            _buildStatCol(isPh ? 'Lingguhan' : 'Weekly', devWeeklyKwh, devWeeklyKwh * _activeRate, textColor, hintColor, successColor),
+                            _buildStatCol(isPh ? 'Buwanan' : 'Monthly', devMonthlyKwh, devMonthlyKwh * _activeRate, textColor, hintColor, successColor),
                           ],
                         ),
                       ),
@@ -604,43 +455,18 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     );
   }
 
-  Widget _buildSummaryRow(
-    String label,
-    double kwh,
-    double cost,
-    Color textColor,
-    Color hintColor, {
-    bool isBold = false,
-  }) {
+  Widget _buildSummaryRow(String label, double kwh, double cost, Color textColor, Color hintColor, {bool isBold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: hintColor,
-            fontSize: isBold ? 14 : 13,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
+        Text(label, style: TextStyle(color: hintColor, fontSize: isBold ? 14 : 13, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
         Row(
           children: [
-            Text(
-              '${kwh.toStringAsFixed(1)} kWh',
-              style: TextStyle(color: hintColor, fontSize: 13),
-            ),
+            Text('${kwh.toStringAsFixed(1)} kWh', style: TextStyle(color: hintColor, fontSize: 13)),
             const SizedBox(width: 16),
             SizedBox(
               width: 80,
-              child: Text(
-                '₱${cost.toStringAsFixed(2)}',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: isBold ? 16 : 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text('₱${cost.toStringAsFixed(2)}', textAlign: TextAlign.right, style: TextStyle(color: textColor, fontSize: isBold ? 16 : 14, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -648,67 +474,25 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     );
   }
 
-  Widget _buildStatCol(
-    String label,
-    double kwh,
-    double cost,
-    Color textColor,
-    Color hintColor,
-    Color successColor,
-  ) {
+  Widget _buildStatCol(String label, double kwh, double cost, Color textColor, Color hintColor, Color successColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(color: hintColor, fontSize: 10, letterSpacing: 0.5),
-        ),
+        Text(label, style: TextStyle(color: hintColor, fontSize: 10, letterSpacing: 0.5)),
         const SizedBox(height: 4),
-        Text(
-          '${kwh.toStringAsFixed(2)} kWh',
-          style: TextStyle(
-            color: textColor,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          '₱${cost.toStringAsFixed(0)}',
-          style: TextStyle(
-            color: successColor,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Text('${kwh.toStringAsFixed(2)} kWh', style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold)),
+        Text('₱${cost.toStringAsFixed(0)}', style: TextStyle(color: successColor, fontSize: 12, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
-  Widget _buildMathRow(
-    String title,
-    String desc,
-    String formula,
-    Color textColor,
-    Color hintColor,
-    bool isDark,
-    Color successColor,
-  ) {
+  Widget _buildMathRow(String title, String desc, String formula, Color textColor, Color hintColor, bool isDark, Color successColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Text(title, style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(
-          desc,
-          style: TextStyle(color: hintColor, fontSize: 12, height: 1.4),
-        ),
+        Text(desc, style: TextStyle(color: hintColor, fontSize: 12, height: 1.4)),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
@@ -718,15 +502,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: isDark ? Colors.transparent : Colors.black.withOpacity(0.05)),
           ),
-          child: Text(
-            formula,
-            style: TextStyle(
-              color: successColor,
-              fontSize: 12,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          child: Text(formula, style: TextStyle(color: successColor, fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
         ),
       ],
     );
