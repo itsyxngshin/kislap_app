@@ -4,7 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../auth/sign_in_screen.dart';
 import 'admin_users_screen.dart';
-import '../dashboard/dashboard_shell.dart';
+import '../dashboard/dashboard_shell.dart'; 
 import 'package:fl_chart/fl_chart.dart';
 
 class AdminOverviewScreen extends StatefulWidget {
@@ -35,27 +35,13 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
 
   Future<void> _fetchAdminAnalytics() async {
     try {
-      final supabase = Supabase.instance.client;
+      // THE FIX: Call our secure backend function to bypass RLS and offload the math
+      final response = await Supabase.instance.client.rpc('get_global_analytics');
 
-      // 1. Get actual user count
-      final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
-
-      // 2. Query the cloud 'appliances' table for global draw
-      final allAppliances = await supabase.from('appliances').select('watts, quantity, hours_per_day');
-
-      double totalKwh = 0;
-      for (var item in allAppliances) {
-        final watts = (item['watts'] as num?)?.toDouble() ?? 0.0;
-        final qty = (item['quantity'] as num?)?.toInt() ?? 1;
-        final hours = (item['hours_per_day'] as num?)?.toDouble() ?? 0.0;
-
-        totalKwh += ((watts * qty) / 1000) * hours;
-      }
-
-      if (mounted) {
+      if (mounted && response != null) {
         setState(() {
-          _totalUsers = userCountResponse.count ?? 0;
-          _globalDailyKwh = totalKwh;
+          _totalUsers = (response['total_users'] as num?)?.toInt() ?? 0;
+          _globalDailyKwh = (response['global_kwh'] as num?)?.toDouble() ?? 0.0;
         });
       }
     } catch (e) {
@@ -141,8 +127,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                 tooltip: 'Switch to User View',
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DashboardShell()),
+                    context, 
+                    MaterialPageRoute(builder: (_) => const DashboardShell()), 
                     (route) => false
                   );
                 },
@@ -317,8 +303,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   }
 
   Widget _buildHistoricalGraph(Color surfaceColor, Color textColor) {
-    // Computes relative Y-axis scaling to guarantee the final dot is accurately positioned
-    // against the system-wide _globalDailyKwh, ensuring the graph is not static.
+    // Computes relative Y-axis scaling to guarantee the final dot is accurately positioned 
+    // against the real system-wide _globalDailyKwh.
     final double maxY = _globalDailyKwh > 0 ? _globalDailyKwh * 1.3 : 10.0;
 
     return Container(
@@ -357,7 +343,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                       FlSpot(3, _globalDailyKwh * 0.7),
                       FlSpot(4, _globalDailyKwh * 0.6),
                       FlSpot(5, _globalDailyKwh * 0.85),
-                      FlSpot(6, _globalDailyKwh), // Live plotted final value
+                      FlSpot(6, _globalDailyKwh), // Live plotted final value corresponding to today
                     ],
                     isCurved: true,
                     color: AppColors.adminRed,
@@ -366,9 +352,9 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                     dotData: FlDotData(
                       show: true,
                       getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                        radius: 4,
-                        color: AppColors.adminRed,
-                        strokeWidth: 2,
+                        radius: 4, 
+                        color: AppColors.adminRed, 
+                        strokeWidth: 2, 
                         strokeColor: Colors.white
                       ),
                     ),
