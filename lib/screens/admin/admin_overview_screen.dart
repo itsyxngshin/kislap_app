@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../auth/sign_in_screen.dart';
 import 'admin_users_screen.dart';
+import '../dashboard/dashboard_shell.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class AdminOverviewScreen extends StatefulWidget {
@@ -39,7 +40,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
       // 1. Get actual user count
       final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
 
-      // 2. THE FIX: Query the correct cloud 'appliances' table instead of the local 'user_inventory' table
+      // 2. Query the cloud 'appliances' table for global draw
       final allAppliances = await supabase.from('appliances').select('watts, quantity, hours_per_day');
 
       double totalKwh = 0;
@@ -117,7 +118,6 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
-    // Fixed to 2 tabs as we dropped the local rate overrides
     return DefaultTabController(
       length: 2,
       child: Container(
@@ -135,6 +135,18 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
               ],
             ),
             actions: [
+              // --- ACCESS POINT TO USER INTERFACE ---
+              IconButton(
+                icon: const Icon(Icons.phone_iphone_rounded, color: Colors.blueAccent),
+                tooltip: 'Switch to User View',
+                onPressed: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DashboardShell()),
+                    (route) => false
+                  );
+                },
+              ),
               IconButton(icon: Icon(Icons.logout, color: textColor), onPressed: _signOut)
             ],
             bottom: TabBar(
@@ -171,7 +183,6 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             Row(
               children: [
                 Expanded(
-                  // THE FIX: Access point correctly routed to AdminUsersScreen
                   child: GestureDetector(
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminUsersScreen())),
                     child: Container(
@@ -306,6 +317,10 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   }
 
   Widget _buildHistoricalGraph(Color surfaceColor, Color textColor) {
+    // Computes relative Y-axis scaling to guarantee the final dot is accurately positioned
+    // against the system-wide _globalDailyKwh, ensuring the graph is not static.
+    final double maxY = _globalDailyKwh > 0 ? _globalDailyKwh * 1.3 : 10.0;
+
     return Container(
       height: 300,
       padding: const EdgeInsets.all(20),
@@ -326,22 +341,37 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: maxY,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(1, 120),
-                      FlSpot(2, 210),
-                      FlSpot(3, 180),
-                      FlSpot(4, 300),
-                      FlSpot(5, 280),
-                      FlSpot(6, 400),
+                    spots: [
+                      FlSpot(0, _globalDailyKwh * 0.2),
+                      FlSpot(1, _globalDailyKwh * 0.4),
+                      FlSpot(2, _globalDailyKwh * 0.3),
+                      FlSpot(3, _globalDailyKwh * 0.7),
+                      FlSpot(4, _globalDailyKwh * 0.6),
+                      FlSpot(5, _globalDailyKwh * 0.85),
+                      FlSpot(6, _globalDailyKwh), // Live plotted final value
                     ],
                     isCurved: true,
                     color: AppColors.adminRed,
                     barWidth: 4,
                     isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                        radius: 4,
+                        color: AppColors.adminRed,
+                        strokeWidth: 2,
+                        strokeColor: Colors.white
+                      ),
+                    ),
                     belowBarData: BarAreaData(
                       show: true,
                       color: AppColors.adminRed.withOpacity(0.2),
