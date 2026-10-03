@@ -31,7 +31,8 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
         if (cloudData.isNotEmpty) {
           loaded = cloudData.map((row) {
-            final double hours = (row['hours_per_day'] as num?)?.toDouble() ?? 0.0;
+            final double hours =
+                (row['hours_per_day'] as num?)?.toDouble() ?? 0.0;
             return Appliance(
               id: row['id'].toString(),
               presetId: 9999,
@@ -41,7 +42,7 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
               quantity: (row['quantity'] as int?) ?? 1,
               userAssignedHours: hours,
               adjustedHours: hours,
-              isLocked: false,
+              isLocked: row['is_locked'] as bool? ?? false,
             );
           }).toList();
 
@@ -106,9 +107,9 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
-        await Supabase.instance.client.from('appliances').insert(
-          newItem.toSupabaseMap(user.id),
-        );
+        await Supabase.instance.client
+            .from('appliances')
+            .insert(newItem.toSupabaseMap(user.id));
       } catch (e) {
         debugPrint('Cloud insert error: $e');
       }
@@ -186,7 +187,10 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
   }
 
   /// Calculates proportional reduction and mirrors current state to local SQLite.
-  Future<void> _optimizeAndSave(List<Appliance> currentState, {bool syncCloud = true}) async {
+  Future<void> _optimizeAndSave(
+    List<Appliance> currentState, {
+    bool syncCloud = true,
+  }) async {
     final db = await DatabaseHelper.instance.database;
     final settings = await db.query('user_settings', limit: 1);
 
@@ -207,7 +211,11 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       for (var item in currentState) {
         if (item.isLocked) {
           lockedMonthlyKwh +=
-              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -218,7 +226,11 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       for (var item in currentState) {
         if (!item.isLocked) {
           unlockedMonthlyKwh +=
-              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -255,7 +267,10 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
         for (var item in optimizedState) {
           await Supabase.instance.client
               .from('appliances')
-              .update({'hours_per_day': item.adjustedHours})
+              .update({
+                'hours_per_day': item.adjustedHours,
+                'is_locked': item.isLocked,
+              })
               .eq('id', item.id)
               .eq('user_id', user.id);
         }

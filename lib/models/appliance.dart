@@ -65,6 +65,7 @@ class Appliance {
       'watts': presetWattage,
       'hours_per_day': adjustedHours,
       'quantity': quantity,
+      'is_locked': isLocked,
     };
   }
 }
