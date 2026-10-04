@@ -35,7 +35,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _fetchAdminAnalytics() async {
     try {
       final supabase = Supabase.instance.client;
-      final userCountResponse = await supabase.from('profiles').select('id').count(CountOption.exact);
+      final userCountResponse = await supabase
+          .from('profiles')
+          .select('id')
+          .count(CountOption.exact);
 
       // Execute a relational join to calculate the global draw from synced offline data
       final allInventory = await supabase.from('user_inventory').select('''
@@ -69,7 +72,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _fetchSystemSettings() async {
     try {
-      final data = await Supabase.instance.client.from('app_settings').select().eq('id', 1).maybeSingle();
+      final data = await Supabase.instance.client
+          .from('app_settings')
+          .select()
+          .eq('id', 1)
+          .maybeSingle();
       if (data != null && mounted) {
         setState(() {
           _isMaintenanceMode = data['is_maintenance_mode'] ?? false;
@@ -82,20 +89,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Future<void> _saveSystemSettings() async {
     setState(() => _isUpdatingSettings = true);
     try {
-      await Supabase.instance.client.from('app_settings').update({
-        'is_maintenance_mode': _isMaintenanceMode,
-        'lock_message': _lockMessageController.text.trim(),
-      }).eq('id', 1);
+      await Supabase.instance.client
+          .from('app_settings')
+          .update({
+            'is_maintenance_mode': _isMaintenanceMode,
+            'lock_message': _lockMessageController.text.trim(),
+          })
+          .eq('id', 1);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('System settings updated successfully!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('System settings updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update settings: $e'), backgroundColor: AppColors.adminRed),
+          SnackBar(
+            content: Text('Failed to update settings: $e'),
+            backgroundColor: AppColors.adminRed,
+          ),
         );
       }
     } finally {
@@ -104,12 +120,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _signOut() async {
-      setState(() => _isLoading = true);
       await Supabase.instance.client.auth.signOut();
 
       try {
         final db = await DatabaseHelper.instance.database;
-        // THE FIX: Changed 'user_inventory' to 'user_appliances'
+        // Wipe local data so the next login is a clean slate
         await db.delete('user_appliances');
         await db.delete('recording_periods');
         await db.delete('user_settings');
@@ -145,13 +160,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             elevation: 0,
             title: Row(
               children: [
-                const Icon(Icons.admin_panel_settings, color: AppColors.adminRed),
+                const Icon(
+                  Icons.admin_panel_settings,
+                  color: AppColors.adminRed,
+                ),
                 const SizedBox(width: 10),
-                Text('Admin Control', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                Text(
+                  'Admin Control',
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             actions: [
-              IconButton(icon: Icon(Icons.logout, color: textColor), onPressed: _signOut)
+              IconButton(
+                icon: Icon(Icons.logout, color: textColor),
+                onPressed: _signOut,
+              ),
             ],
             bottom: TabBar(
               indicatorColor: AppColors.appYellow,
@@ -174,7 +201,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildAnalyticsTab(Color surfaceColor, Color textColor, Color hintColor) {
+  Widget _buildAnalyticsTab(
+    Color surfaceColor,
+    Color textColor,
+    Color hintColor,
+  ) {
     return RefreshIndicator(
       onRefresh: _fetchAdminAnalytics,
       color: AppColors.appYellow,
@@ -189,14 +220,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(
+                      color: surfaceColor.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.group, color: Colors.blueAccent, size: 24),
+                        const Icon(
+                          Icons.group,
+                          color: Colors.blueAccent,
+                          size: 24,
+                        ),
                         const SizedBox(height: 8),
-                        Text('$_totalUsers', style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.bold)),
-                        Text('Total Users', style: TextStyle(color: hintColor, fontSize: 12)),
+                        Text(
+                          '$_totalUsers',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Total Users',
+                          style: TextStyle(color: hintColor, fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -205,14 +253,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(
+                      color: surfaceColor.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.bolt, color: AppColors.appYellow, size: 24),
+                        const Icon(
+                          Icons.bolt,
+                          color: AppColors.appYellow,
+                          size: 24,
+                        ),
                         const SizedBox(height: 8),
-                        Text('${_globalDailyKwh.toStringAsFixed(1)} kWh', style: TextStyle(color: textColor, fontSize: 24, fontWeight: FontWeight.bold)),
-                        Text('Daily System Draw', style: TextStyle(color: hintColor, fontSize: 12)),
+                        Text(
+                          '${_globalDailyKwh.toStringAsFixed(1)} kWh',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Daily System Draw',
+                          style: TextStyle(color: hintColor, fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -227,7 +292,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildLockdownTab(Color surfaceColor, Color textColor, Color hintColor) {
+  Widget _buildLockdownTab(
+    Color surfaceColor,
+    Color textColor,
+    Color hintColor,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -242,15 +311,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: AppColors.adminRed, size: 30),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.adminRed,
+                  size: 30,
+                ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('System-Wide Kill Switch', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(
+                        'System-Wide Kill Switch',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Activating maintenance mode will immediately lock out all regular users.', style: TextStyle(color: hintColor, fontSize: 12)),
+                      Text(
+                        'Activating maintenance mode will immediately lock out all regular users.',
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
@@ -261,15 +344,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: surfaceColor.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.build_circle_outlined, color: _isMaintenanceMode ? AppColors.adminRed : hintColor),
+                    Icon(
+                      Icons.build_circle_outlined,
+                      color: _isMaintenanceMode
+                          ? AppColors.adminRed
+                          : hintColor,
+                    ),
                     const SizedBox(width: 15),
-                    Text('Maintenance Mode', style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Maintenance Mode',
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 Switch(
@@ -284,7 +382,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 25),
 
-          Text('Lock Screen Message', style: TextStyle(color: hintColor, fontSize: 13)),
+          Text(
+            'Lock Screen Message',
+            style: TextStyle(color: hintColor, fontSize: 13),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _lockMessageController,
@@ -295,7 +396,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               hintStyle: TextStyle(color: hintColor.withOpacity(0.5)),
               filled: true,
               fillColor: surfaceColor,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           const SizedBox(height: 30),
@@ -304,11 +408,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _isUpdatingSettings ? null : _saveSystemSettings,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.adminRed, foregroundColor: Colors.white),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.adminRed,
+                foregroundColor: Colors.white,
+              ),
               icon: _isUpdatingSettings
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
                   : const Icon(Icons.gavel),
-              label: Text(_isUpdatingSettings ? 'Applying Lock...' : 'Save System Status', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              label: Text(
+                _isUpdatingSettings ? 'Applying Lock...' : 'Save System Status',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -327,16 +447,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('System-Wide Consumption Trend', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+          Text(
+            'System-Wide Consumption Trend',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 20),
           Expanded(
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),
                 titlesData: const FlTitlesData(
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
