@@ -103,9 +103,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-    if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
-  }
+      setState(() => _isLoading = true);
+      await Supabase.instance.client.auth.signOut();
+
+      try {
+        final db = await DatabaseHelper.instance.database;
+        // THE FIX: Changed 'user_inventory' to 'user_appliances'
+        await db.delete('user_appliances');
+        await db.delete('recording_periods');
+        await db.delete('user_settings');
+      } catch (e) {
+        debugPrint('Error wiping local DB: $e');
+      }
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      }
+    }
 
   @override
   void dispose() {
