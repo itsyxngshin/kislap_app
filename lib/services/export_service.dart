@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/inventory_provider.dart';
 
 class ExportService {
@@ -35,7 +39,7 @@ class ExportService {
 
     Sheet dataSheet = excel[dataSheetName];
     if (excel.tables.containsKey('Sheet1')) {
-      excel.delete('Sheet1'); // Remove the default empty sheet
+      excel.delete('Sheet1');
     }
 
     // --- SHEET 1: DATA TABLES ---
@@ -49,7 +53,6 @@ class ExportService {
     dataSheet.appendRow([TextCellValue('Utility Rate (PHP/kWh)'), DoubleCellValue(tariffRate)]);
     dataSheet.appendRow([TextCellValue('')]);
 
-    // Table Headers
     dataSheet.appendRow([
       TextCellValue('Appliance Name'),
       TextCellValue('Qty'),
@@ -64,7 +67,6 @@ class ExportService {
 
     double totalDailyKwh = 0;
 
-    // Inject Inventory Math
     for (var item in inventory) {
       double dailyKwh = ((item.presetWattage * item.quantity) / 1000) * item.adjustedHours;
       totalDailyKwh += dailyKwh;
@@ -88,7 +90,6 @@ class ExportService {
     graphSheet.appendRow([TextCellValue('Note: Highlight the tables below and click "Insert > Chart" in Excel to generate your visual graphs.')]);
     graphSheet.appendRow([TextCellValue('')]);
 
-    // Data Table 1: Daily Trend (For Bar/Line Charts)
     graphSheet.appendRow([TextCellValue('7-DAY CONSUMPTION TREND')]);
     graphSheet.appendRow([TextCellValue('Day'), TextCellValue('Multiplier Basis'), TextCellValue('Projected kWh')]);
 
@@ -105,7 +106,6 @@ class ExportService {
 
     graphSheet.appendRow([TextCellValue('')]);
 
-    // Data Table 2: Appliance Cost Breakdown (For Pie Charts)
     graphSheet.appendRow([TextCellValue('APPLIANCE COST BREAKDOWN')]);
     graphSheet.appendRow([TextCellValue('Appliance'), TextCellValue('Monthly Cost (PHP)')]);
     for (var item in inventory) {
@@ -113,7 +113,27 @@ class ExportService {
        graphSheet.appendRow([TextCellValue('${item.customName} (x${item.quantity})'), DoubleCellValue(double.parse(cost.toStringAsFixed(2)))]);
     }
 
-    // Triggers download automatically on Web/Vercel
-    excel.save(fileName: 'Kislap_Optimization_Report.xlsx');
+    // --- CROSS-PLATFORM SAVE & EXPORT ---
+    String fileName = 'Kislap_Optimization_Report.xlsx';
+
+    // This triggers the standard browser download on Web
+    var fileBytes = excel.save(fileName: fileName);
+
+    if (fileBytes != null && !kIsWeb) {
+      try {
+        // Write to the temporary mobile app sandbox
+        final directory = await getApplicationDocumentsDirectory();
+        final file = File('${directory.path}/$fileName');
+        await file.writeAsBytes(fileBytes);
+
+        // Trigger native iOS/Android Share Sheet
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Here is your Kislap Energy Optimization Report!'
+        );
+      } catch (e) {
+        debugPrint('Export Error: $e');
+      }
+    }
   }
 }
