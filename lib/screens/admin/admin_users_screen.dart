@@ -25,7 +25,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Future<void> _fetchUsers() async {
     setState(() => _isLoading = true);
     try {
-      final response = await Supabase.instance.client.rpc('get_admin_oversight_data');
+      // THE FIX: Pointing to the new RPC that bundles budgets and appliances
+      final response = await Supabase.instance.client.rpc('get_all_users_admin_data');
       if (mounted && response != null) {
         setState(() {
           _users = List.from(response);
@@ -33,7 +34,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error fetching oversight data: $e');
+      debugPrint('Error fetching detailed user data: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -98,7 +99,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     final currentUser = Supabase.instance.client.auth.currentUser;
                     if (currentUser?.email == null) throw 'Session invalid.';
 
-                    // Re-authenticate to prove identity
                     await Supabase.instance.client.auth.signInWithPassword(
                       email: currentUser!.email!,
                       password: passwordController.text,
@@ -106,7 +106,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
                     if (mounted) {
                       Navigator.pop(ctx);
-                      onVerified(); // Execute the sensitive function
+                      onVerified();
                     }
                   } catch (e) {
                     setModalState(() {
@@ -135,7 +135,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Edit User'),
+        title: Text('Edit User', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -145,13 +145,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
               value: selectedRole,
               decoration: InputDecoration(
                 filled: true,
-                fillColor: Colors.black26,
+                fillColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
               dropdownColor: Theme.of(context).colorScheme.surface,
-              items: const [
-                DropdownMenuItem(value: 1, child: Text('Standard User', style: TextStyle(color: Colors.white))),
-                DropdownMenuItem(value: 2, child: Text('Administrator', style: TextStyle(color: AppColors.adminRed))),
+              items: [
+                DropdownMenuItem(value: 1, child: Text('Standard User', style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+                const DropdownMenuItem(value: 2, child: Text('Administrator', style: TextStyle(color: AppColors.adminRed))),
               ],
               onChanged: (val) => selectedRole = val!,
             ),
@@ -200,6 +200,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
@@ -249,21 +250,37 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           itemBuilder: (context, index) {
                             final user = filteredUsers[index];
                             final bool isAdmin = user['role_id'] == 2;
+                            final double monthlyBudget = (user['monthly_budget'] as num?)?.toDouble() ?? 0.0;
                             final List appliances = user['appliances'] ?? [];
-                            final List periods = user['periods'] ?? [];
+
+                            // Calculate cumulative user metrics
+                            double totalDailyKwh = 0.0;
+                            for (var app in appliances) {
+                              final watts = (app['watts'] as num?)?.toDouble() ?? 0.0;
+                              final qty = (app['quantity'] as num?)?.toInt() ?? 1;
+                              final hours = (app['hours_per_day'] as num?)?.toDouble() ?? 0.0;
+                              totalDailyKwh += ((watts * qty) / 1000) * hours;
+                            }
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: surfaceColor.withOpacity(0.5),
+                                color: surfaceColor.withOpacity(0.6),
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: isAdmin ? AppColors.adminRed.withOpacity(0.3) : Colors.transparent),
+                                border: Border.all(
+                                  color: isAdmin
+                                      ? AppColors.adminRed.withOpacity(0.4)
+                                      : (isDark ? Colors.white12 : Colors.black.withOpacity(0.05)),
+                                ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                              child: Theme(
+                                // Removes the default border lines from ExpansionTile
+                                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                child: ExpansionTile(
+                                  iconColor: hintColor,
+                                  collapsedIconColor: hintColor,
+                                  tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  title: Row(
                                     children: [
                                       CircleAvatar(
                                         backgroundColor: isAdmin ? AppColors.adminRed.withOpacity(0.2) : Colors.blueAccent.withOpacity(0.2),
@@ -274,12 +291,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(user['full_name'] ?? 'Unknown', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                                            Text(user['full_name'] ?? 'Unknown', style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold)),
                                             Text(user['email'] ?? 'No Email', style: TextStyle(color: hintColor, fontSize: 12)),
                                           ],
                                         ),
                                       ),
-                                      // ACTIONS
                                       PopupMenuButton<String>(
                                         icon: Icon(Icons.more_vert, color: hintColor),
                                         color: surfaceColor,
@@ -288,21 +304,59 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                           if (val == 'delete') _confirmDelete(user);
                                         },
                                         itemBuilder: (context) => [
-                                          const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18, color: Colors.blueAccent), SizedBox(width: 8), Text('Edit Details')])),
+                                          PopupMenuItem(value: 'edit', child: Row(children: [const Icon(Icons.edit, size: 18, color: Colors.blueAccent), const SizedBox(width: 8), Text('Edit Details', style: TextStyle(color: textColor))])),
                                           const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_forever, size: 18, color: AppColors.adminRed), SizedBox(width: 8), Text('Delete User', style: TextStyle(color: AppColors.adminRed))])),
                                         ],
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      _buildStatColumn(Icons.devices, '${appliances.length}', 'Appliances', Colors.orangeAccent),
-                                      _buildStatColumn(Icons.receipt_long, '${periods.length}', 'Bill Records', Colors.greenAccent),
-                                    ],
-                                  ),
-                                ],
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              _buildMetricBadge('Budget Limit', '₱${monthlyBudget.toStringAsFixed(0)}', isDark ? Colors.greenAccent : Colors.green.shade700, isDark, textColor),
+                                              _buildMetricBadge('Total Draw', '${totalDailyKwh.toStringAsFixed(1)} kWh/day', AppColors.appYellow, isDark, textColor),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 20),
+                                          Text('APPLIANCE BREAKDOWN', style: TextStyle(color: hintColor, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                          const SizedBox(height: 12),
+                                          if (appliances.isEmpty)
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+                                              child: Text('No appliances recorded for this user.', style: TextStyle(color: hintColor, fontSize: 12)),
+                                            )
+                                          else
+                                            ...appliances.map((app) {
+                                              final watts = (app['watts'] as num?)?.toDouble() ?? 0.0;
+                                              final qty = (app['quantity'] as num?)?.toInt() ?? 1;
+                                              final hours = (app['hours_per_day'] as num?)?.toDouble() ?? 0.0;
+                                              final kwh = ((watts * qty) / 1000) * hours;
+
+                                              return Padding(
+                                                padding: const EdgeInsets.only(bottom: 10.0),
+                                                child: Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text('${app['name']} (x$qty)', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                                    ),
+                                                    Text('${kwh.toStringAsFixed(2)} kWh', style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold)),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -314,13 +368,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
-  Widget _buildStatColumn(IconData icon, String value, String label, Color color) {
+  Widget _buildMetricBadge(String label, String value, Color color, bool isDark, Color textColor) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: color, size: 20),
+        Text(label, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 11)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+          child: Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+        ),
       ],
     );
   }
