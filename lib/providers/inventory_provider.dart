@@ -4,18 +4,105 @@ import 'package:uuid/uuid.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_helper.dart';
-import '../models/appliance.dart';
 
-export '../models/appliance.dart';
+// 1. THE EMBEDDED MODEL (Prevents missing file imports)
+class Appliance {
+  final String id;
+  final int presetId;
+  final String customName;
+  final String category;
+  final double presetWattage;
+  final int quantity;
+  final double userAssignedHours;
+  final double adjustedHours;
+  final bool isLocked;
 
+  Appliance({
+    required this.id,
+    required this.presetId,
+    required this.customName,
+    required this.category,
+    required this.presetWattage,
+    required this.quantity,
+    required this.userAssignedHours,
+    required this.adjustedHours,
+    required this.isLocked,
+  });
+
+  Appliance copyWith({
+    String? customName,
+    String? category,
+    double? presetWattage,
+    int? quantity,
+    double? userAssignedHours,
+    double? adjustedHours,
+    bool? isLocked,
+  }) {
+    return Appliance(
+      id: id,
+      presetId: presetId,
+      customName: customName ?? this.customName,
+      category: category ?? this.category,
+      presetWattage: presetWattage ?? this.presetWattage,
+      quantity: quantity ?? this.quantity,
+      userAssignedHours: userAssignedHours ?? this.userAssignedHours,
+      adjustedHours: adjustedHours ?? this.adjustedHours,
+      isLocked: isLocked ?? this.isLocked,
+    );
+  }
+
+  Map<String, dynamic> toSqliteMap() {
+    return {
+      'id': id,
+      'preset_id': presetId,
+      'custom_name': customName,
+      'preset_wattage': presetWattage,
+      'quantity': quantity,
+      'user_assigned_hours': userAssignedHours,
+      'adjusted_hours': adjustedHours,
+      'is_locked': isLocked ? 1 : 0,
+    };
+  }
+
+  Map<String, dynamic> toSupabaseMap(String userId) {
+    return {
+      'id': id,
+      'user_id': userId,
+      'name': customName,
+      'category': category,
+      'watts': presetWattage,
+      'hours_per_day': adjustedHours,
+      'quantity': quantity,
+      'is_locked': isLocked,
+    };
+  }
+}
+
+// 2. THE PROVIDER (Reverted to standard Notifier)
 class InventoryNotifier extends Notifier<List<Appliance>> {
   @override
   List<Appliance> build() {
+    // --- GHOST DATA KILLER ---
+    // Natively listens to Supabase Auth. Wipes RAM instantly on logout!
+    final authSubscription = Supabase.instance.client.auth.onAuthStateChange
+        .listen((data) {
+          if (data.event == AuthChangeEvent.signedOut) {
+            state = []; // Destroy previous user's data
+          } else if (data.event == AuthChangeEvent.signedIn) {
+            Future.microtask(
+              () => _loadInventory(),
+            ); // Load fresh data for new user
+          }
+        });
+
+    ref.onDispose(() {
+      authSubscription.cancel();
+    });
+
     Future.microtask(() => _loadInventory());
     return [];
   }
 
-  /// Kinukuha ang appliances mula sa Supabase kung naka-login; kung hindi, sa SQLite kukunin.
   Future<void> _loadInventory() async {
     final db = await DatabaseHelper.instance.database;
     final user = Supabase.instance.client.auth.currentUser;
@@ -31,7 +118,8 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
         if (cloudData.isNotEmpty) {
           loaded = cloudData.map((row) {
-            final double hours = (row['hours_per_day'] as num?)?.toDouble() ?? 0.0;
+            final double hours =
+                (row['hours_per_day'] as num?)?.toDouble() ?? 0.0;
             return Appliance(
               id: row['id'].toString(),
               presetId: 9999,
@@ -45,7 +133,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
             );
           }).toList();
 
-          // I-mirror ang cloud data sa lokal na SQLite cache
           Batch batch = db.batch();
           batch.delete('user_appliances');
           for (var item in loaded) {
@@ -104,16 +191,15 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
-        await Supabase.instance.client.from('appliances').insert(
-          newItem.toSupabaseMap(user.id),
-        );
+        await Supabase.instance.client
+            .from('appliances')
+            .insert(newItem.toSupabaseMap(user.id));
       } catch (e) {
         debugPrint('Cloud insert error: $e');
       }
     }
   }
 
-  // Idinagdag ang 'wattage' parameter
   Future<void> editAppliance({
     required String id,
     required String customName,
@@ -184,7 +270,10 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     await _optimizeAndSave(newState);
   }
 
-  Future<void> _optimizeAndSave(List<Appliance> currentState, {bool syncCloud = true}) async {
+  Future<void> _optimizeAndSave(
+    List<Appliance> currentState, {
+    bool syncCloud = true,
+  }) async {
     final db = await DatabaseHelper.instance.database;
     final settings = await db.query('user_settings', limit: 1);
 
@@ -205,7 +294,11 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       for (var item in currentState) {
         if (item.isLocked) {
           lockedMonthlyKwh +=
-              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -216,7 +309,11 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       for (var item in currentState) {
         if (!item.isLocked) {
           unlockedMonthlyKwh +=
-              (item.presetWattage * item.quantity * item.userAssignedHours * 30) / 1000;
+              (item.presetWattage *
+                  item.quantity *
+                  item.userAssignedHours *
+                  30) /
+              1000;
         }
       }
 
@@ -266,6 +363,9 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
   }
 }
 
+// 3. THE SAFE RIVERPOD DECLARATION
 final inventoryProvider = NotifierProvider<InventoryNotifier, List<Appliance>>(
-  () => InventoryNotifier(),
+  () {
+    return InventoryNotifier();
+  },
 );
