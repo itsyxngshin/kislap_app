@@ -44,9 +44,13 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     return '${minutes}m';
   }
 
-  // ISO 25010: Universal Edit Implementation for Devices Screen
   void _showEditModal(dynamic item, bool isPh) {
     final nameController = TextEditingController(text: item.customName);
+    final wattageController = TextEditingController(
+      text: item.presetWattage % 1 == 0
+          ? item.presetWattage.toInt().toString()
+          : item.presetWattage.toString(),
+    );
     final hoursController = TextEditingController(text: item.userAssignedHours.toString());
     int quantity = item.quantity;
     final surfaceColor = Theme.of(context).colorScheme.surface;
@@ -59,8 +63,16 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
       builder: (context) {
         return StatefulBuilder(builder: (context, setModalState) {
           return Container(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24, left: 24, right: 24, top: 24),
-            decoration: BoxDecoration(color: surfaceColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              left: 24,
+              right: 24,
+              top: 24,
+            ),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,33 +80,88 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(isPh ? 'I-edit ang Gamit' : 'Edit Appliance', style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(icon: Icon(Icons.close, color: textColor.withOpacity(0.6)), onPressed: () => Navigator.pop(context)),
+                    Text(
+                      isPh ? 'I-edit ang Gamit' : 'Edit Appliance',
+                      style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close, color: textColor.withOpacity(0.6)),
+                      onPressed: () => Navigator.pop(context),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 TextField(
-                  controller: nameController, style: TextStyle(color: textColor),
-                  decoration: InputDecoration(labelText: isPh ? 'Pangalan' : 'Custom Name', filled: true, fillColor: textColor.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                  controller: nameController,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: isPh ? 'Pangalan' : 'Custom Name',
+                    filled: true,
+                    fillColor: textColor.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Input Field para sa Wattage
+                TextField(
+                  controller: wattageController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: isPh ? 'Wattage (W)' : 'Wattage (Watts)',
+                    suffixText: 'W',
+                    filled: true,
+                    fillColor: textColor.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: TextField(
-                        controller: hoursController, keyboardType: const TextInputType.numberWithOptions(decimal: true), style: TextStyle(color: textColor),
-                        decoration: InputDecoration(labelText: isPh ? 'Oras (Arawan)' : 'Daily Hours', suffixText: 'hrs', filled: true, fillColor: textColor.withOpacity(0.05), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)),
+                        controller: hoursController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          labelText: isPh ? 'Oras (Arawan)' : 'Daily Hours',
+                          suffixText: 'hrs',
+                          filled: true,
+                          fillColor: textColor.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(color: textColor.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(
+                        color: textColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Row(
                         children: [
-                          IconButton(onPressed: quantity > 1 ? () => setModalState(() => quantity--) : null, icon: const Icon(Icons.remove)),
-                          Text('$quantity', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
-                          IconButton(onPressed: () => setModalState(() => quantity++), icon: const Icon(Icons.add)),
+                          IconButton(
+                            onPressed: quantity > 1 ? () => setModalState(() => quantity--) : null,
+                            icon: const Icon(Icons.remove),
+                          ),
+                          Text(
+                            '$quantity',
+                            style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            onPressed: () => setModalState(() => quantity++),
+                            icon: const Icon(Icons.add),
+                          ),
                         ],
                       ),
                     ),
@@ -106,11 +173,26 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   child: FilledButton(
                     onPressed: () {
                       final newHours = double.tryParse(hoursController.text) ?? item.userAssignedHours;
-                      ref.read(inventoryProvider.notifier).editAppliance(id: item.id, customName: nameController.text.trim(), quantity: quantity, userAssignedHours: newHours);
+                      final newWattage = double.tryParse(wattageController.text) ?? item.presetWattage;
+
+                      ref.read(inventoryProvider.notifier).editAppliance(
+                        id: item.id,
+                        customName: nameController.text.trim(),
+                        quantity: quantity,
+                        userAssignedHours: newHours,
+                        wattage: newWattage,
+                      );
                       Navigator.pop(context);
                     },
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87, padding: const EdgeInsets.symmetric(vertical: 16)),
-                    child: Text(isPh ? 'I-save ang Pagbabago' : 'Save Changes', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.appYellow,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      isPh ? 'I-save ang Pagbabago' : 'Save Changes',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -247,7 +329,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ],
                                 ),
                               ),
-                              // NEW: Edit Button
                               Column(
                                 children: [
                                   IconButton(
@@ -260,7 +341,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                 ],
                               ),
                               const SizedBox(width: 5),
-                              // Lock Button
                               Column(
                                 children: [
                                   IconButton(
@@ -274,7 +354,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                 ],
                               ),
                               const SizedBox(width: 5),
-                              // Delete Button
                               Column(
                                 children: [
                                   IconButton(

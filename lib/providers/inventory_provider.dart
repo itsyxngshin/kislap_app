@@ -15,7 +15,7 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     return [];
   }
 
-  /// Loads appliances: checks Supabase first if authenticated; otherwise falls back to SQLite.
+  /// Kinukuha ang appliances mula sa Supabase kung naka-login; kung hindi, sa SQLite kukunin.
   Future<void> _loadInventory() async {
     final db = await DatabaseHelper.instance.database;
     final user = Supabase.instance.client.auth.currentUser;
@@ -41,12 +41,11 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
               quantity: (row['quantity'] as int?) ?? 1,
               userAssignedHours: hours,
               adjustedHours: hours,
-              // FETCH CLOUD LOCK STATUS
               isLocked: row['is_locked'] as bool? ?? false,
             );
           }).toList();
 
-          // Mirror cloud records into local SQLite
+          // I-mirror ang cloud data sa lokal na SQLite cache
           Batch batch = db.batch();
           batch.delete('user_appliances');
           for (var item in loaded) {
@@ -59,7 +58,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
       }
     }
 
-    // Fall back to SQLite if cloud was empty or unavailable
     if (loaded.isEmpty) {
       final localData = await db.query('user_appliances');
       loaded = localData.map((row) {
@@ -103,7 +101,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     final newState = [...state, newItem];
     await _optimizeAndSave(newState);
 
-    // Push new item to Supabase
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
@@ -116,12 +113,14 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     }
   }
 
+  // Idinagdag ang 'wattage' parameter
   Future<void> editAppliance({
     required String id,
     required String customName,
     required int quantity,
     required double userAssignedHours,
     String? category,
+    double? wattage,
   }) async {
     Appliance? updatedItem;
 
@@ -133,6 +132,7 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
           quantity: quantity,
           userAssignedHours: userAssignedHours,
           adjustedHours: userAssignedHours,
+          presetWattage: wattage ?? item.presetWattage,
         );
         return updatedItem!;
       }
@@ -141,7 +141,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
     await _optimizeAndSave(newState);
 
-    // Push update to Supabase
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null && updatedItem != null) {
       try {
@@ -160,7 +159,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     final newState = state.where((item) => item.id != id).toList();
     await _optimizeAndSave(newState);
 
-    // Delete item from Supabase
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
@@ -186,7 +184,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     await _optimizeAndSave(newState);
   }
 
-  /// Calculates proportional reduction and mirrors current state to local SQLite.
   Future<void> _optimizeAndSave(List<Appliance> currentState, {bool syncCloud = true}) async {
     final db = await DatabaseHelper.instance.database;
     final settings = await db.query('user_settings', limit: 1);
@@ -241,7 +238,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
 
     state = optimizedState;
 
-    // Update SQLite cache
     Batch batch = db.batch();
     batch.delete('user_appliances');
     for (var item in optimizedState) {
@@ -249,7 +245,6 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
     }
     await batch.commit(noResult: true);
 
-    // Sync adjusted operating hours and lock status back to Supabase
     final user = Supabase.instance.client.auth.currentUser;
     if (syncCloud && user != null) {
       try {
@@ -258,7 +253,8 @@ class InventoryNotifier extends Notifier<List<Appliance>> {
               .from('appliances')
               .update({
                 'hours_per_day': item.adjustedHours,
-                'is_locked': item.isLocked // SYNC LOCK STATUS
+                'watts': item.presetWattage,
+                'is_locked': item.isLocked,
               })
               .eq('id', item.id)
               .eq('user_id', user.id);
