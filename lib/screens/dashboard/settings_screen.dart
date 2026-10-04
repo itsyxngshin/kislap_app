@@ -91,7 +91,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // THE FIX: Directly populate the UI controllers to guarantee reflection
             _budgetController.text = (profileData['monthly_budget'] as num).toString();
             _householdSize = profileData['household_size'] as String? ?? 'Small';
-             
+
             // THE FIX: Safely UPSERT into local SQLite to rebuild the wiped row
             final existingSettings = await db.query('user_settings', where: 'id = 1');
             final Map<String, dynamic> settingsData = {
@@ -239,22 +239,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _signOut() async {
-    setState(() => _isLoading = true);
-    await Supabase.instance.client.auth.signOut();
+      setState(() => _isLoading = true);
+      await Supabase.instance.client.auth.signOut();
 
-    try {
-      final db = await DatabaseHelper.instance.database;
-      await db.delete('user_inventory');
-      await db.delete('recording_periods');
-      await db.delete('user_settings');
-    } catch (e) {
-      debugPrint('Error wiping local DB: $e');
-    }
+      try {
+        final db = await DatabaseHelper.instance.database;
+        // THE FIX: Changed 'user_inventory' to 'user_appliances'
+        await db.delete('user_appliances');
+        await db.delete('recording_periods');
+        await db.delete('user_settings');
+      } catch (e) {
+        debugPrint('Error wiping local DB: $e');
+      }
 
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
+      }
     }
-  }
 
   void _showAddPeriodModal(bool isPh) {
     String selectedMonth = isPh ? _monthsPh[DateTime.now().month - 1] : _monthsEn[DateTime.now().month - 1];
