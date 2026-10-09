@@ -4,7 +4,8 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../services/database_helper.dart';
 import '../../providers/settings_provider.dart';
-import '../common/privacy_policy_screen.dart'; // <-- Add Import
+import '../common/privacy_policy_screen.dart';
+import '../common/terms_of_service_screen.dart';
 import 'sign_in_screen.dart';
 import 'sign_up_screen.dart';
 import 'guest_setup_screen.dart';
@@ -22,9 +23,7 @@ class OnboardingScreen extends ConsumerWidget {
     final isPh = settings.language == 'ph';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final guestColor = isDark
-        ? Colors.greenAccent.withValues(alpha: 0.8)
-        : Colors.green.shade700;
+    final guestColor = isDark ? Colors.greenAccent.withValues(alpha: 0.8) : Colors.green.shade700;
 
     return Scaffold(
       body: Container(
@@ -38,22 +37,13 @@ class OnboardingScreen extends ConsumerWidget {
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: IntrinsicHeight(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 16.0,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Align(
                             alignment: Alignment.topRight,
-                            child: _buildLanguageToggle(
-                              context,
-                              ref,
-                              isPh,
-                              surfaceColor,
-                              textColor,
-                            ),
+                            child: _buildLanguageToggle(context, ref, isPh, surfaceColor, textColor),
                           ),
 
                           const Spacer(flex: 2),
@@ -67,25 +57,13 @@ class OnboardingScreen extends ConsumerWidget {
 
                           Text(
                             'Kislap',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 42,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2.0,
-                            ),
+                            style: TextStyle(color: textColor, fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: 2.0),
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            isPh
-                                ? 'I-optimize ang kuryente.\nPataasin ang iyong budget.'
-                                : 'Optimize your power.\nMaximize your budget.',
+                            isPh ? 'I-optimize ang kuryente.\nPataasin ang iyong budget.' : 'Optimize your power.\nMaximize your budget.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: hintColor,
-                              fontSize: 16,
-                              height: 1.5,
-                              letterSpacing: 0.5,
-                            ),
+                            style: TextStyle(color: hintColor, fontSize: 16, height: 1.5, letterSpacing: 0.5),
                           ),
 
                           const Spacer(flex: 3),
@@ -94,32 +72,15 @@ class OnboardingScreen extends ConsumerWidget {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SignUpScreen(),
-                                ),
-                              ),
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.appYellow,
                                 foregroundColor: Colors.black87,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 elevation: 8,
-                                shadowColor: AppColors.appYellow.withValues(
-                                  alpha: 0.4,
-                                ),
+                                shadowColor: AppColors.appYellow.withValues(alpha: 0.4),
                               ),
-                              child: Text(
-                                isPh
-                                    ? 'Gumawa ng Account'
-                                    : 'Create an Account',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              child: Text(isPh ? 'Gumawa ng Account' : 'Create an Account', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -128,29 +89,13 @@ class OnboardingScreen extends ConsumerWidget {
                             width: double.infinity,
                             height: 56,
                             child: OutlinedButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SignInScreen(),
-                                ),
-                              ),
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen())),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(
-                                  color: hintColor.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
+                                side: BorderSide(color: hintColor.withValues(alpha: 0.3), width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 foregroundColor: textColor,
                               ),
-                              child: Text(
-                                isPh ? 'Mag-log in' : 'Log In',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              child: Text(isPh ? 'Mag-log in' : 'Log In', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(height: 30),
@@ -158,27 +103,11 @@ class OnboardingScreen extends ConsumerWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Container(
-                                height: 1,
-                                width: 40,
-                                color: hintColor.withValues(alpha: 0.2),
-                              ),
+                              Container(height: 1, width: 40, color: hintColor.withValues(alpha: 0.2)),
                               const SizedBox(width: 15),
-                              Text(
-                                isPh ? 'O' : 'OR',
-                                style: TextStyle(
-                                  color: hintColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
+                              Text(isPh ? 'O' : 'OR', style: TextStyle(color: hintColor, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
                               const SizedBox(width: 15),
-                              Container(
-                                height: 1,
-                                width: 40,
-                                color: hintColor.withValues(alpha: 0.2),
-                              ),
+                              Container(height: 1, width: 40, color: hintColor.withValues(alpha: 0.2)),
                             ],
                           ),
                           const SizedBox(height: 15),
@@ -186,94 +115,52 @@ class OnboardingScreen extends ConsumerWidget {
                           TextButton.icon(
                             onPressed: () async {
                               try {
-                                final db =
-                                    await DatabaseHelper.instance.database;
-                                final settings = await db.query(
-                                  'user_settings',
-                                  limit: 1,
-                                );
-                                if (settings.isNotEmpty &&
-                                    ((settings.first['monthly_budget'] as num?)
-                                                ?.toDouble() ??
-                                            0.0) >
-                                        0) {
+                                final db = await DatabaseHelper.instance.database;
+                                final settings = await db.query('user_settings', limit: 1);
+                                if (settings.isNotEmpty && ((settings.first['monthly_budget'] as num?)?.toDouble() ?? 0.0) > 0) {
                                   if (context.mounted) {
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const DashboardShell(),
-                                      ),
-                                      (route) => false,
-                                    );
+                                    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const DashboardShell()), (route) => false);
                                     return;
                                   }
                                 }
                               } catch (_) {}
 
                               if (context.mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const GuestSetupScreen(),
-                                  ),
-                                );
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestSetupScreen()));
                               }
                             },
-                            icon: Icon(
-                              Icons.rocket_launch_outlined,
-                              color: guestColor,
-                              size: 20,
-                            ),
+                            icon: Icon(Icons.rocket_launch_outlined, color: guestColor, size: 20),
                             label: Text(
-                              isPh
-                                  ? 'Magpatuloy bilang Bisita'
-                                  : 'Continue as Guest',
-                              style: TextStyle(
-                                color: guestColor,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              isPh ? 'Magpatuloy bilang Bisita' : 'Continue as Guest',
+                              style: TextStyle(color: guestColor, fontSize: 15, fontWeight: FontWeight.w600),
                             ),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
 
                           const Spacer(flex: 1),
 
-                          // --- NEW: Copyright & Privacy Policy Footer ---
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          // --- COPYRIGHT & LEGAL FOOTER ---
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Text(
-                                '© ${DateTime.now().year} Kislap. ',
-                                style: TextStyle(
-                                  color: hintColor,
-                                  fontSize: 11,
+                              Text('© ${DateTime.now().year} Kislap. ', style: TextStyle(color: hintColor, fontSize: 11)),
+                              GestureDetector(
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen())),
+                                child: Text(
+                                  isPh ? 'Mga Tuntunin' : 'Terms',
+                                  style: const TextStyle(color: AppColors.appYellow, fontSize: 11, decoration: TextDecoration.underline),
                                 ),
                               ),
+                              Text(' | ', style: TextStyle(color: hintColor, fontSize: 11)),
                               GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const PrivacyPolicyScreen(),
-                                  ),
-                                ),
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
                                 child: Text(
-                                  isPh
-                                      ? 'Patakaran sa Pagkapribado'
-                                      : 'Privacy Policy',
-                                  style: const TextStyle(
-                                    color: AppColors.appYellow,
-                                    fontSize: 11,
-                                    decoration: TextDecoration.underline,
-                                  ),
+                                  isPh ? 'Pagkapribado' : 'Privacy',
+                                  style: const TextStyle(color: AppColors.appYellow, fontSize: 11, decoration: TextDecoration.underline),
                                 ),
                               ),
                             ],
@@ -292,13 +179,7 @@ class OnboardingScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLanguageToggle(
-    BuildContext context,
-    WidgetRef ref,
-    bool isPh,
-    Color surfaceColor,
-    Color textColor,
-  ) {
+  Widget _buildLanguageToggle(BuildContext context, WidgetRef ref, bool isPh, Color surfaceColor, Color textColor) {
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor.withValues(alpha: 0.6),
@@ -315,13 +196,7 @@ class OnboardingScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLangOption(
-    WidgetRef ref,
-    String label,
-    String langCode,
-    bool isSelected,
-    Color textColor,
-  ) {
+  Widget _buildLangOption(WidgetRef ref, String label, String langCode, bool isSelected, Color textColor) {
     return GestureDetector(
       onTap: () => ref.read(settingsProvider.notifier).setLanguage(langCode),
       child: AnimatedContainer(
