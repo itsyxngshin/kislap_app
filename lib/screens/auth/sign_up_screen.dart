@@ -6,7 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
 import '../../services/database_helper.dart';
-import '../../services/sync_service.dart'; // <-- Added for Sync functionality
+import '../../services/sync_service.dart';
+import '../common/privacy_policy_screen.dart'; // <-- Add Import
 import '../dashboard/dashboard_shell.dart';
 import 'onboarding_devices_screen.dart';
 
@@ -21,6 +22,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _isGoogleAuth = false;
+  bool _hasAgreedToPrivacy = false; // <-- Add Consent State
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -183,6 +185,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         );
         return false;
       }
+      // --- NEW: DPA Consent Validation ---
+      if (!_hasAgreedToPrivacy) {
+        _showModalPrompt(
+          'Consent Required',
+          'In compliance with the Data Privacy Act of 2012, please review and accept the Privacy Policy before proceeding.',
+          isError: true,
+        );
+        return false;
+      }
     } else if (_currentStep == 1) {
       final budget = double.tryParse(_budgetController.text) ?? 0.0;
       if (budget <= 0) {
@@ -212,7 +223,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  // --- THE FIX: Custom Onboarding Data Check ---
   Future<void> _checkLocalDataAndPrompt(User user) async {
     try {
       final db = await DatabaseHelper.instance.database;
@@ -222,7 +232,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (localInventory.isNotEmpty) {
         if (!mounted) return;
-
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -240,10 +249,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onPressed: () async {
                   Navigator.pop(ctx);
                   setState(() => _isLoading = true);
-
-                  // ONLY discard the appliances. Keep the budget and rate they just configured!
                   await db.delete('user_appliances').catchError((_) => 0);
-
                   if (mounted) _showOnboardingPrompt();
                 },
                 child: const Text(
@@ -255,11 +261,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 onPressed: () async {
                   Navigator.pop(ctx);
                   setState(() => _isLoading = true);
-
                   await SyncService.mergeOfflineDataToCloud(user.id);
                   await SyncService.syncGlobalPresets();
-
-                  // Skip onboarding devices since they merged existing ones
                   if (mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
@@ -302,6 +305,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             'monthly_budget': budget,
             'tariff_rate': tariff,
             'household_size': _householdSize,
+            'privacy_consent': true, // Keep an audit trail in Supabase metadata
+            'consent_timestamp': DateTime.now().toUtc().toIso8601String(),
           },
         );
         user = authResponse.user;
@@ -361,7 +366,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }, onConflict: 'user_id, period_month');
       }
 
-      // THE FIX: Trigger the sync check instead of going blindly to onboarding
       if (mounted) await _checkLocalDataAndPrompt(user!);
     } on AuthException catch (e) {
       if (mounted)
@@ -682,6 +686,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   'One special character (!@#\$&*)',
                                   _hasSymbol,
                                   hintColor,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // --- NEW: DPA Explicit Consent Checkbox ---
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _hasAgreedToPrivacy
+                                  ? Colors.green.withOpacity(0.08)
+                                  : surfaceColor.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _hasAgreedToPrivacy
+                                    ? Colors.green.withOpacity(0.4)
+                                    : textColor.withOpacity(0.12),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Checkbox(
+                                  value: _hasAgreedToPrivacy,
+                                  activeColor: AppColors.appYellow,
+                                  checkColor: Colors.black87,
+                                  onChanged: (val) => setState(
+                                    () => _hasAgreedToPrivacy = val ?? false,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Wrap(
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      Text(
+                                        'I agree to the ',
+                                        style: TextStyle(
+                                          color: hintColor,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const PrivacyPolicyScreen(),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Privacy Policy',
+                                          style: TextStyle(
+                                            color: AppColors.appYellow,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            decoration:
+                                                TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        ' (R.A. 10173).',
+                                        style: TextStyle(
+                                          color: hintColor,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),

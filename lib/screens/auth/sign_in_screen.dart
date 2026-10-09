@@ -7,6 +7,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
 import '../../services/database_helper.dart';
 import 'sign_up_screen.dart';
+import '../common/privacy_policy_screen.dart'; // <-- Add Import
 import '../dashboard/dashboard_shell.dart';
 import '../admin/admin_dashboard_shell.dart';
 import '../../services/sync_service.dart';
@@ -101,7 +102,6 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final db = await DatabaseHelper.instance.database;
 
-      // THE FIX: Correctly query 'user_appliances' instead of 'user_inventory'
       final localInventory = await db
           .query('user_appliances')
           .catchError((_) => <Map<String, dynamic>>[]);
@@ -130,7 +130,6 @@ class _SignInScreenState extends State<SignInScreen> {
                   Navigator.pop(ctx);
                   setState(() => _isLoading = true);
 
-                  // THE FIX: Wipe the correct 'user_appliances' table
                   await db.delete('user_appliances').catchError((_) => 0);
                   await db.delete('recording_periods').catchError((_) => 0);
                   await db.delete('user_settings').catchError((_) => 0);
@@ -240,7 +239,6 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final authResponse = await Supabase.instance.client.auth
           .signInWithPassword(email: email, password: password);
-
       if (mounted) {
         await _checkLocalDataAndPrompt(authResponse.user!);
       }
@@ -278,7 +276,11 @@ class _SignInScreenState extends State<SignInScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(leading: const BackButton()),
+      appBar: AppBar(
+        leading: const BackButton(),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 10.0),
@@ -450,6 +452,28 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
               ),
+
+              // --- NEW: Google OAuth Privacy & DPA Footer ---
+              const SizedBox(height: 40),
+              Center(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PrivacyPolicyScreen(),
+                    ),
+                  ),
+                  child: Text(
+                    'Privacy Policy & DPA Notice',
+                    style: TextStyle(
+                      color: hintColor.withOpacity(0.8),
+                      fontSize: 11,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
             ],
           ),
         ),
