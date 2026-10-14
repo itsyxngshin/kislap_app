@@ -5,29 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service - Kislap</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 40px 20px; color: #333; }
-        h1, h2, h3 { color: #111; }
-        h1 { border-bottom: 2px solid #FFC107; padding-bottom: 10px; }
-        .date { color: #666; font-style: italic; margin-bottom: 30px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.7; max-width: 860px; margin: 0 auto; padding: 40px 24px; color: #2c3e50; background-color: #fcfcfc; }
+        h1 { color: #111; border-bottom: 3px solid #FFC107; padding-bottom: 12px; margin-bottom: 8px; }
+        h2 { color: #1a1a1a; margin-top: 32px; border-left: 4px solid #FFC107; padding-left: 12px; font-size: 1.25rem; }
+        p, li { font-size: 0.96rem; color: #333; }
+        ul { padding-left: 22px; }
+        li { margin-bottom: 8px; }
+        .meta { color: #666; font-size: 0.9rem; margin-bottom: 32px; }
+        .highlight-box { background: #fff8e1; border: 1px solid #ffe082; padding: 16px; border-radius: 8px; margin: 20px 0; }
     </style>
 </head>
 <body>
-    <h1>TERMS OF SERVICE</h1>
-    <p class="date">Effective Date: October 2026</p>
+    <h1>TERMS OF SERVICE & END-USER LICENSE AGREEMENT</h1>
+    <div class="meta">
+        <strong>Application:</strong> KISLAP Energy Monitoring & Optimization App<br>
+        <strong>Effective Date:</strong> October 2026<br>
+        <strong>Jurisdiction:</strong> Republic of the Philippines
+    </div>
 
-    <h3>1. Acceptance of Terms</h3>
-    <p>By downloading, accessing, or using the KISLAP app ("the App"), you agree to be bound by these Terms of Service. If you do not agree, you must not use the application.</p>
+    <div class="highlight-box">
+        <strong>IMPORTANT NOTICE:</strong> By downloading, installing, accessing, or using the KISLAP application ("the App"), you agree to be legally bound by these Terms of Service ("Terms"). If you do not agree to every provision of these Terms, do not install, access, or use the App.
+    </div>
 
-    <h3>2. Estimates Only & Limitation of Liability</h3>
-    <p>KISLAP is an analytical tool designed to estimate electrical power consumption based on user-provided inputs and static formulas. <strong>It is not an exact electrical meter.</strong> We do not guarantee the absolute accuracy of the projected costs. KISLAP and its developers shall not be held legally or financially responsible for any discrepancies between the App’s projections and your actual utility bills.</p>
+    <h2>1. Nature of Service & Mathematical Estimation Disclaimer</h2>
+    <p>KISLAP is a decision-support and analytical software utility designed to estimate household electrical power consumption, model appliance load profiles, and recommend usage schedules based on user-supplied parameters and static mathematical formulas.</p>
+    <ul>
+        <li><strong>Not a Certified Electrical Meter:</strong> The App does not physically connect to your electrical grid, smart meter, or circuit breakers. All kilowatt-hour (kWh) and Philippine Peso (₱) figures are theoretical projections calculated using standard power equations: <code>Daily kWh = (Wattage × Quantity × Hours) ÷ 1000</code>.</li>
+        <li><strong>Real-World Variance:</strong> Actual electricity consumption varies significantly due to compressor duty cycles (e.g., inverter air conditioners and refrigerators), ambient room temperature, voltage fluctuations, appliance aging, phantom standby loads, and monthly utility rate adjustments (such as generation, transmission, system loss, and universal charges).</li>
+        <li><strong>No Financial Liability ("Bill Shock" Protection):</strong> KISLAP and its developers do not warrant or guarantee that your actual electric utility bill will match the App's projections. We shall not be held legally,equitably, or financially liable for any billing discrepancies, budget overruns, or financial losses incurred from relying on the App's estimates.</li>
+    </ul>
 
-    <h3>3. User Responsibilities</h3>
-    <p>You are responsible for ensuring your inputted wattage, usage hours, and tariff rates are accurate. The App provides scheduling recommendations; you retain full responsibility for safely operating and managing your physical appliances.</p>
+    <h2>2. Electrical Safety & User Responsibilities</h2>
+    <ul>
+        <li><strong>Input Accuracy:</strong> The accuracy of KISLAP's optimization engine relies entirely on the data you provide. You are solely responsible for verifying the rated wattage (W), quantities, daily runtime hours, household kVA classification, and current utility tariff rates (₱/kWh) entered into the App.</li>
+        <li><strong>Physical Appliance Management:</strong> KISLAP provides scheduling recommendations and kVA load tier warnings (Small, Medium, Large) for informational purposes only. The App is not a substitute for a licensed master electrician, proper circuit breaker sizing, or safe wiring practices. You retain sole responsibility for physically operating, unplugging, and monitoring your household appliances to prevent electrical fires, short circuits, or equipment damage.</li>
+    </ul>
 
-    <h3>4. Service Availability & Data Loss</h3>
-    <p>KISLAP is provided on an "AS IS" basis. We do not warrant uninterrupted service and are not liable for the loss of appliance inventories or custom settings resulting from device failure, app uninstallation, or cloud server downtime.</p>
+    <h2>3. Account Registration, Guest Mode & Security</h2>
+    <ul>
+        <li><strong>Registered Accounts:</strong> When creating an account via email/password or Google Sign-In (OAuth 2.0), you agree to provide accurate identity information and maintain the confidentiality of your login credentials. You are responsible for all activities that occur under your account.</li>
+        <li><strong>Guest Mode Limitations:</strong> If you use KISLAP in Guest Mode, your appliance inventory and billing records are stored exclusively in a local SQLite database on your device. Uninstalling the App, clearing app cache, or losing your device will permanently erase Guest Mode data unless previously merged into a registered cloud account.</li>
+    </ul>
 
-    <h3>5. Account Termination</h3>
-    <p>We reserve the right to suspend or permanently delete your account without prior notice if you violate these Terms, attempt to reverse-engineer the app, or abuse our cloud infrastructure.</p>
+    <h2>4. Acceptable Use & Platform Policy Compliance</h2>
+    <p>In alignment with the Google Play Developer Program Policies and international software standards, you agree not to:</p>
+    <ul>
+        <li>Reverse-engineer, decompile, disassemble, or attempt to extract the source code or optimization algorithms of KISLAP.</li>
+        <li>Abuse, spam, overload, or attempt unauthorized access to our Supabase cloud database infrastructure or authentication APIs.</li>
+        <li>Circumvent Row Level Security (RLS) controls or attempt to access another user's household energy records.</li>
+        <li>Use the App for any unlawful, fraudulent, or unauthorized commercial purpose.</li>
+    </ul>
+    <p>We reserve the right to suspend or permanently terminate your account without prior notice if we detect a violation of these Terms.</p>
+
+    <h2>5. App Store Distribution, Signing & Updates</h2>
+    <ul>
+        <li><strong>Platform Independence:</strong> These Terms are concluded solely between you and the developers of KISLAP, and not with Google LLC or Apple Inc. The app store provider has no obligation to furnish maintenance, technical support, or warranty services for the App.</li>
+        <li><strong>Cryptographic App Signing & Updates:</strong> Official releases of KISLAP on Android are cryptographically signed and distributed via Google Play App Signing. To ensure security and calculation accuracy, you agree to install KISLAP only from authorized distribution channels and accept automatic or manual updates as required to continue using the service.</li>
+    </ul>
+
+    <h2>6. US Export Laws, Encryption & Sanctions Compliance</h2>
+    <p>KISLAP incorporates industry-standard cryptographic functions—including Transport Layer Security (TLS/HTTPS) for data in transit and cryptographic password hashing—and is therefore subject to United States export control laws and regulations, including the Export Administration Regulations (EAR).</p>
+    <p>By downloading or using KISLAP, you represent, warrant, and certify that:</p>
+    <ul>
+        <li>You are not located in, under the control of, or a national or resident of any country or territory subject to a U.S. Government embargo or comprehensive trade sanctions.</li>
+        <li>You are not listed on any U.S. Government list of prohibited or restricted parties (such as the U.S. Treasury Department's List of Specially Designated Nationals or the U.S. Commerce Department's Entity List).</li>
+        <li>You will not export, re-export, or transfer the App in violation of any applicable United States or international export laws.</li>
+    </ul>
+
+    <h2>7. Service Availability & Disclaimer of Warranties</h2>
+    <p>KISLAP is provided on an <strong>"AS IS"</strong> and <strong>"AS AVAILABLE"</strong> basis without warranties of any kind, whether express or implied. While we utilize enterprise cloud infrastructure (Supabase and Vercel), we do not warrant that the App will be uninterrupted, error-free, or immune from server downtime. You are encouraged to regularly back up your schedules using the in-app Excel (<code>.xlsx</code>) export feature.</p>
+
+    <h2>8. Intellectual Property Rights</h2>
+    <p>All proprietary source code, UI/UX designs, graphics, logos, preset appliance catalogs, and mathematical optimization routines within KISLAP are the exclusive intellectual property of its developers and are protected by the Intellectual Property Code of the Philippines (Republic Act No. 8293) and international copyright treaties.</p>
+
+    <h2>9. Governing Law & Contact Information</h2>
+    <p>These Terms shall be governed by and construed in accordance with the laws of the Republic of the Philippines. For legal notices, support, or inquiries regarding these Terms, please contact us at: <strong>privacy.kislap@gmail.com</strong>.</p>
 </body>
 </html>
