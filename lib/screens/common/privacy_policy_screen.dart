@@ -160,7 +160,7 @@ class PrivacyPolicyScreen extends ConsumerWidget {
               body: isPh
                   ? 'Pinananatili lamang namin ang iyong datos habang aktibo ang iyong account. Alinsunod sa R.A. 10173, Google Play, at App Store rules, maaari mong burahin ang iyong account anumang oras:\n'
                     '• In-App Deletion: Pumunta sa Settings > Account > Delete Account & Data. Agad nitong buburahin nang permanente ang iyong profile, appliance inventory, at billing history mula sa Supabase cloud at lokal na SQLite storage.\n'
-                    '• Email Request: Kung na-uninstall mo na ang app, maaari kang mag-email sa privacy.kislap@gmail.com na may subject na "Account Deletion Request" upang ipabura ang iyong cloud records.'
+                    '• Email Request: Kung na-uninstall mo na ang app, maaari kang mag-email sa snapsailinteractive@gmail.com na may subject na "Account Deletion Request" upang ipabura ang iyong cloud records.'
                   : 'We retain your data only while your account remains active. In compliance with R.A. 10173, Google Play Data Safety, and App Store guidelines, you can permanently delete your account at any time:\n'
                     '• Instant In-App Deletion: Go to Settings > Account > Delete Account & Data. This immediately purges your auth credentials, profile, appliance logs, and billing history from our Supabase servers and wipes local device storage.\n'
                     '• Remote Email Request: If you have uninstalled the app, email privacy.kislap@gmail.com with the subject "Account Deletion Request" to have your cloud data purged within 7 business days.',
