@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart'; // Provides kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:sqflite/sqflite.dart'; 
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/social_button.dart';
-import '../../services/database_helper.dart'; 
+import '../../services/database_helper.dart';
 import 'sign_up_screen.dart';
 import '../dashboard/dashboard_shell.dart';
 import '../admin/admin_dashboard_shell.dart';
@@ -20,27 +19,52 @@ class SignInScreen extends StatefulWidget {
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _SignInScreenState extends State<SignInScreen> with WidgetsBindingObserver {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isEmailValid = false;
+  bool _isNavigating = false; // Prevents duplicate navigation triggers
 
   late final StreamSubscription<AuthState> _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    // THE FIX: Listen for Password Recovery deep-links
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
+    WidgetsBinding.instance.addObserver(this);
+
+    // Listen for both OAuth sign-in and password recovery callbacks
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      final event = data.event;
+      final session = data.session;
+
+      if (event == AuthChangeEvent.passwordRecovery) {
         _showUpdatePasswordModal();
+      } else if (event == AuthChangeEvent.signedIn && session != null) {
+        if (!_isNavigating && mounted) {
+          _isNavigating = true;
+          setState(() => _isLoading = true);
+          await _checkLocalDataAndPrompt(session.user);
+        }
       }
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // If the user dismissed or cancelled the Google browser, unlock the button
+    if (state == AppLifecycleState.resumed && _isLoading && !_isNavigating) {
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted && Supabase.instance.client.auth.currentUser == null) {
+          setState(() => _isLoading = false);
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSubscription.cancel();
     _emailController.dispose();
     _passwordController.dispose();
@@ -84,10 +108,9 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  // --- NEW: Forgot Password Request Modal ---
   void _showForgotPasswordModal() {
     final TextEditingController resetEmailController = TextEditingController(text: _emailController.text);
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -119,14 +142,12 @@ class _SignInScreenState extends State<SignInScreen> {
               setState(() => _isLoading = true);
 
               try {
-                // Ensure proper routing upon email click
                 final String redirectUrl = kIsWeb ? 'https://kislap-app.vercel.app' : 'kislap://login-callback';
-                
                 await Supabase.instance.client.auth.resetPasswordForEmail(
                   email,
                   redirectTo: redirectUrl,
                 );
-                
+
                 if (mounted) {
                   _showModalPrompt('Email Sent', 'If an account exists for $email, a password reset link has been sent.', isError: false);
                 }
@@ -144,10 +165,9 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  // --- NEW: Password Update Modal (Triggered by Email Link) ---
   void _showUpdatePasswordModal() {
     final TextEditingController newPasswordController = TextEditingController();
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -179,11 +199,10 @@ class _SignInScreenState extends State<SignInScreen> {
               setState(() => _isLoading = true);
 
               try {
-                // Update the user's password securely
                 await Supabase.instance.client.auth.updateUser(
                   UserAttributes(password: newPassword),
                 );
-                
+
                 if (mounted) {
                   _showModalPrompt('Password Updated', 'Your password has been changed successfully. You will now be logged in.', isError: false, onSuccess: () {
                      _checkLocalDataAndPrompt(Supabase.instance.client.auth.currentUser!);
@@ -211,7 +230,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
       if (localInventory.isNotEmpty || localPeriods.isNotEmpty) {
         if (!mounted) return;
-        
+
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -227,7 +246,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   await db.delete('user_inventory').catchError((_) => 0);
                   await db.delete('recording_periods').catchError((_) => 0);
                   await db.delete('user_settings').catchError((_) => 0);
-                  await _handleSuccessfulLogin(user, bypassSync: true); 
+                  await _handleSuccessfulLogin(user, bypassSync: true);
                 },
                 child: const Text('Discard Local', style: TextStyle(color: Colors.grey)),
               ),
@@ -245,7 +264,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       'billing_rate': p['billing_rate'],
                     }, onConflict: 'user_id, period_month');
                   }
-                  await _handleSuccessfulLogin(user, bypassSync: false); 
+                  await _handleSuccessfulLogin(user, bypassSync: false);
                 },
                 style: FilledButton.styleFrom(backgroundColor: AppColors.appYellow, foregroundColor: Colors.black87),
                 child: const Text('Merge to Cloud'),
@@ -268,7 +287,30 @@ class _SignInScreenState extends State<SignInScreen> {
       }
       await SyncService.syncGlobalPresets();
 
-      final profileData = await Supabase.instance.client.from('profiles').select('role_id').eq('id', user.id).maybeSingle();
+      // Check profile or auto-heal for first-time Google sign-ins
+      var profileData = await Supabase.instance.client
+          .from('profiles')
+          .select('role_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profileData == null) {
+        final fallbackName = user.userMetadata?['full_name'] ??
+                             user.userMetadata?['name'] ??
+                             user.email?.split('@').first ??
+                             'User';
+        try {
+          await Supabase.instance.client.from('profiles').insert({
+            'id': user.id,
+            'email': user.email,
+            'full_name': fallbackName,
+            'role_id': 1,
+            'household_size': 'Small',
+            'monthly_budget': 0.0,
+          });
+        } catch (_) {}
+      }
+
       final int roleId = profileData?['role_id'] as int? ?? 1;
 
       if (mounted) {
@@ -298,9 +340,10 @@ class _SignInScreenState extends State<SignInScreen> {
 
     try {
       final authResponse = await Supabase.instance.client.auth.signInWithPassword(email: email, password: password);
-
-      if (mounted) {
-        await _checkLocalDataAndPrompt(authResponse.user!); 
+      // onAuthStateChange handles navigation, but if not yet triggered:
+      if (mounted && !_isNavigating && authResponse.user != null) {
+        _isNavigating = true;
+        await _checkLocalDataAndPrompt(authResponse.user!);
       }
     } on AuthException catch (e) {
       if (mounted) _showModalPrompt('Authentication Failed', e.message, isError: true);
@@ -315,7 +358,7 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() => _isLoading = true);
     try {
       final String redirectUrl = kIsWeb ? 'https://kislap-app.vercel.app' : 'kislap://login-callback';
-      
+
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectUrl,
@@ -361,11 +404,11 @@ class _SignInScreenState extends State<SignInScreen> {
                 decoration: InputDecoration(
                   hintText: 'name@email.com',
                   prefixIcon: Icon(Icons.email_outlined, color: hintColor),
-                  suffixIcon: _emailController.text.isNotEmpty 
+                  suffixIcon: _emailController.text.isNotEmpty
                       ? Icon(_isEmailValid ? Icons.check_circle : Icons.error, color: _isEmailValid ? Colors.green : AppColors.adminRed)
                       : null,
-                  errorText: _emailController.text.isNotEmpty && !_isEmailValid 
-                      ? 'Please enter a valid email format' 
+                  errorText: _emailController.text.isNotEmpty && !_isEmailValid
+                      ? 'Please enter a valid email format'
                       : null,
                   filled: true,
                   fillColor: surfaceColor.withOpacity(0.5),
@@ -381,7 +424,7 @@ class _SignInScreenState extends State<SignInScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: _showForgotPasswordModal, // THE FIX: Connected the reset trigger
+                  onPressed: _showForgotPasswordModal,
                   child: const Text('Forgot Password?', style: TextStyle(color: AppColors.appYellow, fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
               ),
