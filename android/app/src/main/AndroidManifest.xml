@@ -4,7 +4,7 @@
 
     <!-- Allows the app to save the Excel Export file to the phone (Android 10 and below) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />	
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <application
         android:label="Kislap"
         android:name="${applicationName}"

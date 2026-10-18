@@ -329,7 +329,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ],
                                 ),
                               ),
-
+                              
                               // Lock/Unlock prominently displayed
                               Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
