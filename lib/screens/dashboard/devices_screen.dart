@@ -105,7 +105,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Input Field para sa Wattage
                 TextField(
                   controller: wattageController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -265,8 +264,8 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                     Expanded(
                       child: Text(
                         isPh
-                          ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock (🔓) ang iba para sa awtomatikong pag-optimize ng budget.'
-                          : 'Lock (🔒) essential items. Leave flexible items unlocked (🔓) for automatic budget optimization.',
+                          ? 'I-lock (🔒) ang mahahalagang gamit. Iwanang naka-unlock para sa awtomatikong pag-optimize ng budget.'
+                          : 'Lock (🔒) essential items. Leave flexible items unlocked for automatic budget optimization.',
                         style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 12, height: 1.4),
                       ),
                     ),
@@ -312,6 +311,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                       child: Column(
                         children: [
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(12),
@@ -329,38 +329,59 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ],
                                 ),
                               ),
+
+                              // Lock/Unlock prominently displayed
                               Column(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined),
-                                    color: AppColors.appYellow,
-                                    iconSize: 24,
-                                    onPressed: () => _showEditModal(device, isPh),
-                                  ),
-                                  Text(isPh ? 'I-edit' : 'Edit', style: const TextStyle(color: AppColors.appYellow, fontSize: 10, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(width: 5),
-                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   IconButton(
                                     icon: Icon(device.isLocked ? Icons.lock : Icons.lock_open, color: lockColor, size: 24),
                                     onPressed: () => ref.read(inventoryProvider.notifier).toggleLock(device.id, device.isLocked),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
                                   ),
+                                  const SizedBox(height: 4),
                                   Text(
                                     device.isLocked ? (isPh ? 'Naka-lock' : 'Locked') : (isPh ? 'Naka-unlock' : 'Unlocked'),
                                     style: TextStyle(color: lockColor, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 5),
-                              Column(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline, color: hintColor, size: 24),
-                                    onPressed: () => ref.read(inventoryProvider.notifier).removeAppliance(device.id),
+                              const SizedBox(width: 8),
+
+                              // Edit & Remove condensed into Kebab menu
+                              PopupMenuButton<String>(
+                                icon: Icon(Icons.more_vert, color: hintColor),
+                                color: surfaceColor,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    _showEditModal(device, isPh);
+                                  } else if (value == 'delete') {
+                                    ref.read(inventoryProvider.notifier).removeAppliance(device.id);
+                                  }
+                                },
+                                itemBuilder: (BuildContext context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.edit_outlined, color: AppColors.appYellow, size: 20),
+                                        const SizedBox(width: 12),
+                                        Text(isPh ? 'I-edit' : 'Edit', style: TextStyle(color: textColor, fontSize: 14)),
+                                      ],
+                                    ),
                                   ),
-                                  Text(isPh ? 'Burahin' : 'Remove', style: TextStyle(color: hintColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.delete_outline, color: AppColors.adminRed, size: 20),
+                                        const SizedBox(width: 12),
+                                        Text(isPh ? 'Burahin' : 'Remove', style: const TextStyle(color: AppColors.adminRed, fontSize: 14)),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
