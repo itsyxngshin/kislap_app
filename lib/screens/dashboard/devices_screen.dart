@@ -207,6 +207,10 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
     final devices = ref.watch(inventoryProvider);
     final isPh = ref.watch(settingsProvider).language == 'ph';
 
+    // THE FIX: Theme-aware adaptive green color
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color successColor = isDark ? Colors.greenAccent : Colors.green.shade700;
+
     final textColor = Theme.of(context).colorScheme.onSurface;
     final hintColor = textColor.withOpacity(0.6);
     final surfaceColor = Theme.of(context).colorScheme.surface;
@@ -296,7 +300,9 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                   final double monthlyCost = monthlyKwh * _activeRate;
 
                   final bool isReduced = device.adjustedHours < device.userAssignedHours;
-                  final Color lockColor = device.isLocked ? AppColors.appYellow : (isReduced ? Colors.orange : Colors.greenAccent);
+
+                  // THE FIX: successColor dynamically switches green shades
+                  final Color lockColor = device.isLocked ? AppColors.appYellow : (isReduced ? Colors.orange : successColor);
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
@@ -329,8 +335,7 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                                   ],
                                 ),
                               ),
-                              
-                              // Lock/Unlock prominently displayed
+
                               Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -349,7 +354,6 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                               ),
                               const SizedBox(width: 8),
 
-                              // Edit & Remove condensed into Kebab menu
                               PopupMenuButton<String>(
                                 icon: Icon(Icons.more_vert, color: hintColor),
                                 color: surfaceColor,
@@ -398,7 +402,9 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
                               children: [
                                 _buildMetricColumn(isPh ? 'Araw-araw' : 'Daily', '${dailyKwh.toStringAsFixed(2)} kWh', textColor, hintColor),
                                 _buildMetricColumn(isPh ? 'Buwanan' : 'Monthly', '${monthlyKwh.toStringAsFixed(1)} kWh', textColor, hintColor),
-                                _buildMetricColumn(isPh ? 'Est. Bayad' : 'Est. Cost', '₱${monthlyCost.toStringAsFixed(0)}', device.isLocked ? AppColors.appYellow : Colors.greenAccent, hintColor),
+
+                                // THE FIX: successColor dynamically applies below
+                                _buildMetricColumn(isPh ? 'Est. Bayad' : 'Est. Cost', '₱${monthlyCost.toStringAsFixed(0)}', device.isLocked ? AppColors.appYellow : successColor, hintColor),
                               ],
                             ),
                           ),

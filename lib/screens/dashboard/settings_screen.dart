@@ -9,9 +9,6 @@ import '../../services/database_helper.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../providers/inventory_provider.dart';
 import '../../providers/settings_provider.dart';
-import '../common/privacy_policy_screen.dart';
-import '../common/terms_of_service_screen.dart';
-import 'analysis_screen.dart';
 import '../admin/admin_dashboard_shell.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -70,6 +67,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _email = 'Local Offline Mode';
     } else {
       _email = user.email ?? '';
+
       String fallbackName = user.userMetadata?['full_name'] as String? ?? '';
       if (fallbackName.isEmpty) fallbackName = _email.split('@').first;
       if (fallbackName.isEmpty) fallbackName = 'User';
@@ -242,7 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     try {
       final db = await DatabaseHelper.instance.database;
-      await db.delete('user_appliances');
+      await db.delete('user_inventory');
       await db.delete('recording_periods');
       await db.delete('user_settings');
     } catch (e) {
@@ -251,67 +249,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     if (mounted) {
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
-    }
-  }
-
-  Future<void> _confirmAccountDeletion(BuildContext context) async {
-    final surfaceColor = Theme.of(context).colorScheme.surface;
-    final isPh = ref.read(settingsProvider).language == 'ph';
-
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: surfaceColor,
-        title: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: AppColors.adminRed, size: 28),
-            const SizedBox(width: 8),
-            Text(isPh ? 'Burahin ang Account' : 'Delete Account', style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text(
-          isPh
-            ? 'Sigurado ka bang gusto mong burahin ang iyong account? Ito ay permanente. Mabubura lahat ng iyong appliance data, budget, at billing history alinsunod sa DPA at patakaran ng App Store.'
-            : 'Are you sure you want to delete your account? This action is permanent and complies with DPA/App Store deletion rights. All appliance inventories, budgets, and billing history will be permanently wiped.',
-          style: const TextStyle(height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isPh ? 'Kanselahin' : 'Cancel', style: const TextStyle(color: Colors.grey)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.adminRed),
-            child: Text(isPh ? 'Burahin' : 'Delete Permanently', style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete == true) {
-      setState(() => _isLoading = true);
-      try {
-        await Supabase.instance.client.rpc('delete_user_account');
-
-        final db = await DatabaseHelper.instance.database;
-        await db.delete('user_appliances').catchError((_) => 0);
-        await db.delete('recording_periods').catchError((_) => 0);
-        await db.delete('user_settings').catchError((_) => 0);
-
-        await Supabase.instance.client.auth.signOut();
-
-        if (mounted) {
-          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const SignInScreen()), (route) => false);
-        }
-      } catch (e) {
-        setState(() => _isLoading = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete account: $e'), backgroundColor: AppColors.adminRed),
-          );
-        }
-      }
     }
   }
 
@@ -444,8 +381,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     final isPh = ref.watch(settingsProvider).language == 'ph';
     final devices = ref.watch(inventoryProvider);
+
+    // THE FIX: Added 'device.quantity' to the loop formula
     double optimizedDailyKwh = 0.0;
-    for (var device in devices) { optimizedDailyKwh += (device.presetWattage / 1000) * device.adjustedHours; }
+    for (var device in devices) {
+      optimizedDailyKwh += ((device.presetWattage * device.quantity) / 1000) * device.adjustedHours;
+    }
     final double optimizedMonthlyKwh = optimizedDailyKwh * 30;
 
     return Scaffold(
@@ -583,9 +524,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
                   child: Column(
                     children: [
-                      _buildRadioOption('Small (0 - 5 kVA)', 'Small', isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, and lights.', textColor, hintColor),
-                      _buildRadioOption('Medium (6 - 15 kVA)', 'Medium', isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, washing machine, fridge, etc.', textColor, hintColor),
-                      _buildRadioOption('Large (16 - 25 kVA)', 'Large', isPh ? 'Malakas na konsumo: Maraming aircon at appliances.' : 'Heavy usage. Multiple split-type ACs, water heaters, large appliances.', textColor, hintColor),
+                      _buildRadioOption('Small (0 - 5 kVA)', 'Small', isPh ? 'Basic na gamit lamang: Fan, TV, ilaw, atbp.' : 'Basic appliances only. Fans, TV, fridge, etc.', textColor, hintColor),
+                      _buildRadioOption('Medium (6 - 15 kVA)', 'Medium', isPh ? 'Pangkaraniwang bahay. May 1-2 aircon, ref, atbp.' : 'Standard home. 1-2 air conditioners, fridge, etc.', textColor, hintColor),
+                      _buildRadioOption('Large (16 - 25 kVA)', 'Large', isPh ? 'Malakas na konsumo: Maraming aircon at appliances.' : 'Heavy usage. Multiple ACs, large appliances.', textColor, hintColor),
                     ],
                   ),
                 ),
@@ -689,47 +630,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // --- SYSTEM TRANSPARENCY (WITH ToS ADDED) ---
-                Text(isPh ? 'SISTEMA AT TRANSPARENCY' : 'SYSTEM TRANSPARENCY', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(color: surfaceColor.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: textColor.withOpacity(0.05))),
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.calculate_outlined, color: AppColors.appYellow),
-                        title: Text(isPh ? 'Paano Gumagana ang Kislap?' : 'How Kislap Computes', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
-                        subtitle: Text(isPh ? 'I-verify ang math, optimization engine, at graphs.' : 'Verify the math, optimization engine, and graphs.', style: TextStyle(color: hintColor, fontSize: 12)),
-                        trailing: Icon(Icons.arrow_forward_ios, color: hintColor, size: 16),
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
-                        },
-                      ),
-                      const Divider(color: Colors.white12, height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.gavel_rounded, color: AppColors.appYellow),
-                        title: Text(isPh ? 'Mga Tuntunin ng Serbisyo' : 'Terms of Service', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
-                        subtitle: Text(isPh ? 'Basahin ang aming mga kondisyon at patakaran.' : 'View our usage conditions and liability limits.', style: TextStyle(color: hintColor, fontSize: 12)),
-                        trailing: Icon(Icons.arrow_forward_ios, color: hintColor, size: 16),
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
-                        },
-                      ),
-                      const Divider(color: Colors.white12, height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.shield_outlined, color: AppColors.appYellow),
-                        title: Text(isPh ? 'Patakaran sa Pagkapribado' : 'Privacy Policy', style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
-                        subtitle: Text(isPh ? 'Basahin ang aming DPA notice at mga karapatan sa data.' : 'View our DPA notice and data rights.', style: TextStyle(color: hintColor, fontSize: 12)),
-                        trailing: Icon(Icons.arrow_forward_ios, color: hintColor, size: 16),
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-
                 // 7. ADMINISTRATION (Conditional)
                 if (_roleId == 2) ...[
                   Text(isPh ? 'ADMINISTRASYON' : 'ADMINISTRATION', style: TextStyle(color: hintColor, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
@@ -761,27 +661,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     style: OutlinedButton.styleFrom(side: BorderSide(color: hintColor.withOpacity(0.3)), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   ),
                 ),
-
-                // --- DATA DELETION (App Store / DPA Requirement) ---
-                if (_email != 'Offline Mode' && _email != 'Local Offline Mode') ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      onPressed: () => _confirmAccountDeletion(context),
-                      icon: const Icon(Icons.delete_forever, color: AppColors.adminRed),
-                      label: Text(
-                        isPh ? 'Burahin ang Account' : 'Delete Account & Data',
-                        style: const TextStyle(color: AppColors.adminRed, fontSize: 15, fontWeight: FontWeight.bold)
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
               ],
             ),
           ),
