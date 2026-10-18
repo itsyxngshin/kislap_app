@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../theme/app_colors.dart';
@@ -141,16 +142,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithGoogle() async {
-    setState(() => _isLoading = true);
-    try {
-      await Supabase.instance.client.auth.signInWithOAuth(OAuthProvider.google, redirectTo: 'https://kislap-app.vercel.app');
-    } catch (e) {
-      if (mounted) {
-        _showModalPrompt('Google Sign-Up Error', e.toString(), isError: true);
-        setState(() => _isLoading = false);
+      setState(() => _isLoading = true);
+
+      try {
+        final String redirectUrl = kIsWeb
+            ? 'https://kislap-app.vercel.app'
+            : 'kislap://login-callback';
+
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: redirectUrl,
+        );
+      } catch (e) {
+        if (mounted) {
+          _showModalPrompt('Google Sign-Up Error', e.toString(), isError: true);
+          setState(() => _isLoading = false);
+        }
       }
     }
-  }
 
   Future<void> _checkLocalDataAndPrompt(User user) async {
     try {

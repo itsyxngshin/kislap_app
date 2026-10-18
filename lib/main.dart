@@ -16,6 +16,7 @@ void main() async {
     url: 'https://yaquyjfowoyomxcibemy.supabase.co',
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXV5amZvd295b214Y2liZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4ODU2MDEsImV4cCI6MjA5OTQ2MTYwMX0.l8u3R8elcOQnrj9ZcGhaQZAlErYYLJZ-bcF3LzCRHHM',
+    authCallbackUrlHostname: 'login-callback',
   );
 
   // --- ADD THIS GLOBAL INITIALIZATION ---
